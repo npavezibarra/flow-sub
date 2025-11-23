@@ -31,6 +31,12 @@ function flow_sub_init()
 	require_once FLOW_SUB_PATH . 'includes/class-flow-sub-shortcode.php';
 	new Flow_Sub_Shortcode();
 
+	// Include WooCommerce integration if WooCommerce is active.
+	if (class_exists('WooCommerce')) {
+		require_once FLOW_SUB_PATH . 'includes/class-flow-sub-woocommerce.php';
+		new Flow_Sub_WooCommerce();
+	}
+
 	// Instantiate the admin class.
 	if (is_admin()) {
 		new Flow_Sub_Admin();

@@ -161,4 +161,26 @@ class Flow_Sub_API
     {
         return $this->post('subscription/create', $data);
     }
+
+    /**
+     * Get subscriptions.
+     *
+     * @param array $params Query parameters (e.g., customerId).
+     * @return array|WP_Error List of subscriptions or WP_Error.
+     */
+    public function get_subscriptions($params = array())
+    {
+        return $this->get('subscription/list', $params);
+    }
+
+    /**
+     * Get a single subscription.
+     *
+     * @param string $subscription_id Subscription ID.
+     * @return array|WP_Error Subscription data or WP_Error.
+     */
+    public function get_subscription($subscription_id)
+    {
+        return $this->get('subscription/get', array('subscriptionId' => $subscription_id));
+    }
 }

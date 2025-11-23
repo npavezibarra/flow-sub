@@ -44,6 +44,12 @@ class Flow_Sub_Shortcode
             return '';
         }
 
+        if (isset($_GET['flow_subscribed']) && '1' === $_GET['flow_subscribed']) {
+            return '<div class="flow-subscription-success-message" style="background-color: #d4edda; color: #155724; padding: 15px; border: 1px solid #c3e6cb; border-radius: 4px;">' .
+                esc_html__('Hemos enviado un correo para que ingreses tu información de pago y suscribirte automáticamente al sitio EL VIllegas', 'flow-sub') .
+                '</div>';
+        }
+
         ob_start();
         ?>
         <form method="post">
@@ -129,6 +135,7 @@ class Flow_Sub_Shortcode
         $subscription_response = $api->create_subscription($subscription_data);
 
         if (is_wp_error($subscription_response)) {
+            error_log('Flow Sub Error: ' . $subscription_response->get_error_message());
             wp_die(esc_html($subscription_response->get_error_message()));
         }
 
@@ -137,17 +144,53 @@ class Flow_Sub_Shortcode
             wp_die(esc_html('Error creating subscription: ' . ($subscription_response['message'] ?? 'Unknown error')));
         }
 
+        $redirect_url = '';
         if (isset($subscription_response['url'])) {
-            // Redirect to payment URL
-            wp_redirect($subscription_response['url']);
-            exit;
+            $redirect_url = $subscription_response['url'];
         } elseif (isset($subscription_response['paymentUrl'])) {
-            // Some endpoints might return paymentUrl
-            wp_redirect($subscription_response['paymentUrl']);
-            exit;
-        } else {
-            // Fallback or error
-            wp_die(esc_html__('Failed to retrieve payment URL.', 'flow-sub'));
+            $redirect_url = $subscription_response['paymentUrl'];
+        } elseif (isset($subscription_response['payment_url'])) {
+            $redirect_url = $subscription_response['payment_url'];
+        } elseif (isset($subscription_response['checkoutUrl'])) {
+            $redirect_url = $subscription_response['checkoutUrl'];
         }
+
+        // Check inside invoices if not found
+        if (empty($redirect_url) && !empty($subscription_response['invoices']) && is_array($subscription_response['invoices'])) {
+            foreach ($subscription_response['invoices'] as $invoice) {
+                if (!empty($invoice['paymentUrl'])) {
+                    $redirect_url = $invoice['paymentUrl'];
+                    break;
+                }
+                if (!empty($invoice['url'])) {
+                    $redirect_url = $invoice['url'];
+                    break;
+                }
+            }
+        }
+
+        if (!empty($redirect_url)) {
+            // Redirect to payment URL
+            wp_redirect($redirect_url);
+            exit;
+        }
+
+        // If no payment URL, we assume the subscription was created and Flow sent an email.
+
+        // Store subscription ID in user meta for listing in My Account
+        if (isset($subscription_response['subscriptionId'])) {
+            $subs = get_user_meta($user->ID, 'flow_user_subscriptions', true);
+            if (!is_array($subs)) {
+                $subs = array();
+            }
+            if (!in_array($subscription_response['subscriptionId'], $subs, true)) {
+                $subs[] = $subscription_response['subscriptionId'];
+                update_user_meta($user->ID, 'flow_user_subscriptions', $subs);
+            }
+        }
+
+        // Redirect back to the page with a success flag.
+        wp_redirect(add_query_arg('flow_subscribed', '1', wp_get_referer()));
+        exit;
     }
 }
