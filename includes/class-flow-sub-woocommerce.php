@@ -127,11 +127,21 @@ class Flow_Sub_WooCommerce
                 foreach ($sub_data['invoices'] as $invoice) {
                     if (isset($invoice['status']) && 0 === (int) $invoice['status']) {
                         $is_unpaid = true;
-                        $payment_url = $invoice['paymentUrl'] ?? $invoice['url'] ?? '';
 
-                        // If paymentUrl is empty, try to construct it from token
-                        if (empty($payment_url) && !empty($invoice['token'])) {
-                            $payment_url = 'https://www.flow.cl/app/web/pay.php?token=' . $invoice['token'];
+                        // Fetch full invoice details to get paymentLink
+                        $invoice_details = $api->get_invoice($invoice['id']);
+                        if (!is_wp_error($invoice_details)) {
+                            $payment_url = $invoice_details['paymentLink'] ?? '';
+                        }
+
+                        // Fallback to existing logic if needed
+                        if (empty($payment_url)) {
+                            $payment_url = $invoice['paymentUrl'] ?? $invoice['url'] ?? '';
+
+                            // If paymentUrl is empty, try to construct it from token
+                            if (empty($payment_url) && !empty($invoice['token'])) {
+                                $payment_url = 'https://www.flow.cl/app/web/pay.php?token=' . $invoice['token'];
+                            }
                         }
 
                         // If we found an unpaid invoice, we can stop and show this status.

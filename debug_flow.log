@@ -1,0 +1,50 @@
+Array
+(
+    [subscriptionId] => sus_v1a6a63890
+    [planId] => LucaTest
+    [plan_name] => LucaTest
+    [customerId] => cus_e642037d37
+    [created] => 2025-11-23 16:58:53
+    [subscription_start] => 2025-11-23 16:58:53
+    [subscription_end] => 
+    [period_start] => 2025-11-23 00:00:00
+    [period_end] => 2025-11-23 00:00:00
+    [next_invoice_date] => 2025-11-24 00:00:00
+    [trial_period_days] => 0
+    [trial_start] => 
+    [trial_end] => 
+    [cancel_at_period_end] => 0
+    [cancel_at] => 
+    [periods_number] => 
+    [days_until_due] => 3
+    [status] => 1
+    [morose] => 2
+    [discount] => 
+    [invoices] => Array
+        (
+            [0] => Array
+                (
+                    [id] => 5543871
+                    [subscriptionId] => sus_v1a6a63890
+                    [customerId] => cus_e642037d37
+                    [created] => 2025-11-23 16:58:53
+                    [subject] => LucaTest - período: 2025-11-23 / 2025-11-23 00:00:00
+                    [currency] => CLP
+                    [amount] => 1000.0000
+                    [period_start] => 2025-11-23 00:00:00
+                    [period_end] => 2025-11-23 00:00:00
+                    [attemp_count] => 1
+                    [attemped] => 0
+                    [next_attemp_date] => 
+                    [due_date] => 2025-11-26 00:00:00
+                    [status] => 0
+                )
+
+        )
+
+    [items] => Array
+        (
+        )
+
+)
+

@@ -183,4 +183,15 @@ class Flow_Sub_API
     {
         return $this->get('subscription/get', array('subscriptionId' => $subscription_id));
     }
+
+    /**
+     * Get a single invoice.
+     *
+     * @param int $invoice_id Invoice ID.
+     * @return array|WP_Error Invoice data or WP_Error.
+     */
+    public function get_invoice($invoice_id)
+    {
+        return $this->get('invoice/get', array('invoiceId' => $invoice_id));
+    }
 }
