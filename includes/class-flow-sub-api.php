@@ -44,8 +44,37 @@ class Flow_Sub_API
      */
     public function __construct($api_key, $secret_key)
     {
-        $this->api_key = $api_key;
-        $this->secret_key = $secret_key;
+        $this->api_key = $this->decrypt_key($api_key);
+        $this->secret_key = $this->decrypt_key($secret_key);
+    }
+
+    /**
+     * Decrypt key.
+     *
+     * @param string $value The value to decrypt.
+     * @return string Decrypted value.
+     */
+    private function decrypt_key($value)
+    {
+        if (empty($value)) {
+            return $value;
+        }
+
+        // Check if it looks like our encrypted format (base64 encoded string containing "::")
+        if (strpos(base64_decode($value, true), '::') === false) {
+            return $value; // Assume plain text (legacy)
+        }
+
+        $key = defined('AUTH_KEY') ? AUTH_KEY : 'flow-sub-secret-salt';
+        list($encrypted_data, $iv) = explode('::', base64_decode($value), 2);
+
+        if (empty($encrypted_data) || empty($iv)) {
+            return $value; // Fallback
+        }
+
+        $decrypted = openssl_decrypt($encrypted_data, 'aes-256-cbc', $key, 0, $iv);
+
+        return $decrypted !== false ? $decrypted : $value;
     }
 
     /**
@@ -193,5 +222,19 @@ class Flow_Sub_API
     public function get_invoice($invoice_id)
     {
         return $this->get('invoice/get', array('invoiceId' => $invoice_id));
+    }
+    /**
+     * Cancel a subscription.
+     *
+     * @param string $subscription_id Subscription ID.
+     * @param int    $at_period_end   0 for immediate, 1 for end of period.
+     * @return array|WP_Error Subscription data or WP_Error.
+     */
+    public function cancel_subscription($subscription_id, $at_period_end = 0)
+    {
+        return $this->post('subscription/cancel', array(
+            'subscriptionId' => $subscription_id,
+            'at_period_end' => $at_period_end,
+        ));
     }
 }

@@ -24,6 +24,7 @@ class Flow_Sub_WooCommerce
         add_filter('query_vars', array($this, 'add_query_vars'), 0);
         add_filter('woocommerce_account_menu_items', array($this, 'add_menu_item'));
         add_action('woocommerce_account_flow-subscriptions_endpoint', array($this, 'render_content'));
+        add_action('template_redirect', array($this, 'handle_cancellation'));
     }
 
     /**
@@ -107,10 +108,24 @@ class Flow_Sub_WooCommerce
         echo '</thead>';
         echo '<tbody>';
 
-        foreach ($subs as $sub_id) {
-            $sub_data = $api->get_subscription($sub_id);
+        $cache_key = 'flow_user_subs_' . $user_id;
+        $cached_data = get_transient($cache_key);
 
-            if (is_wp_error($sub_data)) {
+        if (false === $cached_data) {
+            $cached_data = array();
+            foreach ($subs as $sub_id) {
+                $sub_data = $api->get_subscription($sub_id);
+                if (!is_wp_error($sub_data)) {
+                    $cached_data[$sub_id] = $sub_data;
+                }
+            }
+            set_transient($cache_key, $cached_data, HOUR_IN_SECONDS);
+        }
+
+        foreach ($subs as $sub_id) {
+            $sub_data = $cached_data[$sub_id] ?? null;
+
+            if (!$sub_data || is_wp_error($sub_data)) {
                 continue;
             }
 
@@ -129,6 +144,12 @@ class Flow_Sub_WooCommerce
                         $is_unpaid = true;
 
                         // Fetch full invoice details to get paymentLink
+                        // We might want to cache this too, but for now let's keep it simple or cache it within the sub data if possible.
+                        // Actually, get_subscription response usually includes invoices but maybe not full details.
+                        // Let's assume we still need to fetch invoice details if we want the paymentLink, 
+                        // BUT fetching invoice details for every unpaid invoice is also N+1.
+                        // However, usually there's only 1 unpaid invoice.
+
                         $invoice_details = $api->get_invoice($invoice['id']);
                         if (!is_wp_error($invoice_details)) {
                             $payment_url = $invoice_details['paymentLink'] ?? '';
@@ -152,7 +173,10 @@ class Flow_Sub_WooCommerce
             }
 
             $status_label = (1 === (int) $status) ? 'Activa' : 'Inactiva';
-            if ($is_unpaid) {
+
+            if (4 === (int) $status) {
+                $status_label = 'Cancelada';
+            } elseif ($is_unpaid) {
                 // Make the status label a link if we have a URL
                 if (!empty($payment_url)) {
                     $status_label = '<a href="' . esc_url($payment_url) . '" target="_blank">' . esc_html__('Pendiente de pago', 'flow-sub') . '</a>';
@@ -167,9 +191,21 @@ class Flow_Sub_WooCommerce
             echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-status" data-title="Estado">' . wp_kses_post($status_label) . '</td>';
             echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-total" data-title="Inicio">' . esc_html($start_date) . '</td>';
             echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-actions" data-title="Acciones">';
-            if ($is_unpaid && !empty($payment_url)) {
+            if ($is_unpaid && !empty($payment_url) && 4 !== (int) $status) {
                 echo '<a href="' . esc_url($payment_url) . '" class="woocommerce-button button view" target="_blank">' . esc_html__('Pagar Ahora', 'flow-sub') . '</a>';
-            } else {
+            }
+
+            // Add Cancel button
+            if ($status !== 4) { // 4 is Cancelled
+                $cancel_url = wp_nonce_url(add_query_arg(array(
+                    'action' => 'cancel_sub',
+                    'sub_id' => $sub_id
+                ), wc_get_endpoint_url('flow-subscriptions')), 'flow_cancel_sub');
+
+                echo '<a href="' . esc_url($cancel_url) . '" class="woocommerce-button button cancel" onclick="return confirm(\'' . esc_js(__('¿Estás seguro de que deseas cancelar esta suscripción?', 'flow-sub')) . '\');" style="margin-left: 5px;">' . esc_html__('Cancelar', 'flow-sub') . '</a>';
+            }
+
+            if (!$is_unpaid && $status === 4) {
                 echo '-';
             }
             echo '</td>';
@@ -177,5 +213,48 @@ class Flow_Sub_WooCommerce
         }
         echo '</tbody>';
         echo '</table>';
+    }
+
+    /**
+     * Handle subscription cancellation.
+     */
+    public function handle_cancellation()
+    {
+        if (empty($_GET['action']) || 'cancel_sub' !== $_GET['action'] || empty($_GET['sub_id'])) {
+            return;
+        }
+
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'flow_cancel_sub')) {
+            wc_add_notice(__('Enlace de seguridad inválido.', 'flow-sub'), 'error');
+            return;
+        }
+
+        $sub_id = sanitize_text_field($_GET['sub_id']);
+        $user_id = get_current_user_id();
+        $user_subs = get_user_meta($user_id, 'flow_user_subscriptions', true);
+
+        if (!is_array($user_subs) || !in_array($sub_id, $user_subs)) {
+            wc_add_notice(__('No tienes permiso para cancelar esta suscripción.', 'flow-sub'), 'error');
+            return;
+        }
+
+        $api_key = get_option('flow_sub_api_key');
+        $secret_key = get_option('flow_sub_secret_key');
+
+        require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
+        $api = new Flow_Sub_API($api_key, $secret_key);
+
+        $result = $api->cancel_subscription($sub_id);
+
+        if (is_wp_error($result)) {
+            wc_add_notice($result->get_error_message(), 'error');
+        } else {
+            wc_add_notice(__('Suscripción cancelada exitosamente.', 'flow-sub'), 'success');
+            // Invalidate cache
+            delete_transient('flow_user_subs_' . $user_id);
+        }
+
+        wp_safe_redirect(wc_get_endpoint_url('flow-subscriptions'));
+        exit;
     }
 }

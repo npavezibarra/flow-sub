@@ -52,7 +52,8 @@ class Flow_Sub_Shortcode
 
         ob_start();
         ?>
-        <form method="post">
+        <form method="post"
+            onsubmit="var btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerText = '<?php echo esc_js(__('Procesando...', 'flow-sub')); ?>';">
             <?php wp_nonce_field('flow_subscribe_action', 'flow_subscribe_nonce'); ?>
             <input type="hidden" name="flow_plan_id" value="<?php echo esc_attr($atts['plan']); ?>" />
             <input type="hidden" name="action" value="flow_subscribe" />
@@ -96,6 +97,23 @@ class Flow_Sub_Shortcode
         require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
         $api = new Flow_Sub_API($api_key, $secret_key);
 
+        // Check for existing active subscriptions to the same plan
+        $existing_subs = get_user_meta($user->ID, 'flow_user_subscriptions', true);
+        if (is_array($existing_subs) && !empty($existing_subs)) {
+            foreach ($existing_subs as $sub_id) {
+                $sub_details = $api->get_subscription($sub_id);
+                if (
+                    !is_wp_error($sub_details) &&
+                    isset($sub_details['status']) &&
+                    1 === (int) $sub_details['status'] &&
+                    isset($sub_details['planId']) &&
+                    $sub_details['planId'] === $plan_id
+                ) {
+                    wp_die(esc_html__('Ya tienes una suscripción activa para este plan.', 'flow-sub'));
+                }
+            }
+        }
+
         // 1. Create or Get Customer
         // Ideally we should check if user already has a customerId stored in meta
         $customer_id = get_user_meta($user->ID, 'flow_customer_id', true);
@@ -133,6 +151,35 @@ class Flow_Sub_Shortcode
         );
 
         $subscription_response = $api->create_subscription($subscription_data);
+
+        // Check if failure is due to invalid customer (e.g. deleted in Flow but exists in WP)
+        // Flow API usually returns code 400 or 404 and a message like "The customerId ... does not exist"
+        // We will check if it's an error and try to recover if it seems related to customer.
+        if (is_wp_error($subscription_response) || (isset($subscription_response['code']) && 200 !== (int) $subscription_response['code'])) {
+
+            $error_msg = is_wp_error($subscription_response) ? $subscription_response->get_error_message() : ($subscription_response['message'] ?? '');
+
+            // Simple check for "customer" in error message as a heuristic
+            if (stripos($error_msg, 'customer') !== false || stripos($error_msg, 'cliente') !== false) {
+                // Retry creating customer
+                $customer_data = array(
+                    'name' => $user->display_name,
+                    'email' => $user->user_email,
+                    'externalId' => $user->ID,
+                );
+
+                $customer_response = $api->create_customer($customer_data);
+
+                if (!is_wp_error($customer_response) && isset($customer_response['customerId'])) {
+                    $customer_id = $customer_response['customerId'];
+                    update_user_meta($user->ID, 'flow_customer_id', $customer_id);
+
+                    // Retry subscription with new customer ID
+                    $subscription_data['customerId'] = $customer_id;
+                    $subscription_response = $api->create_subscription($subscription_data);
+                }
+            }
+        }
 
         if (is_wp_error($subscription_response)) {
             error_log('Flow Sub Error: ' . $subscription_response->get_error_message());
@@ -186,6 +233,8 @@ class Flow_Sub_Shortcode
             if (!in_array($subscription_response['subscriptionId'], $subs, true)) {
                 $subs[] = $subscription_response['subscriptionId'];
                 update_user_meta($user->ID, 'flow_user_subscriptions', $subs);
+                // Invalidate cache
+                delete_transient('flow_user_subs_' . $user->ID);
             }
         }
 

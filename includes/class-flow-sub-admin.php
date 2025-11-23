@@ -43,10 +43,35 @@ class Flow_Sub_Admin
     /**
      * Register plugin settings.
      */
+    /**
+     * Register plugin settings.
+     */
     public function register_settings()
     {
-        register_setting('flow_sub_options', 'flow_sub_api_key');
-        register_setting('flow_sub_options', 'flow_sub_secret_key');
+        register_setting('flow_sub_options', 'flow_sub_api_key', array($this, 'encrypt_key'));
+        register_setting('flow_sub_options', 'flow_sub_secret_key', array($this, 'encrypt_key'));
+    }
+
+    /**
+     * Encrypt key before saving.
+     *
+     * @param string $value The value to encrypt.
+     * @return string Encrypted value.
+     */
+    public function encrypt_key($value)
+    {
+        if (empty($value)) {
+            return $value;
+        }
+
+        // Don't double encrypt if it looks like it's already encrypted (simple heuristic or just rely on decryption failing gracefully)
+        // Actually, WP passes the new value.
+
+        $key = defined('AUTH_KEY') ? AUTH_KEY : 'flow-sub-secret-salt';
+        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+        $encrypted = openssl_encrypt($value, 'aes-256-cbc', $key, 0, $iv);
+
+        return base64_encode($encrypted . '::' . $iv);
     }
 
     /**
