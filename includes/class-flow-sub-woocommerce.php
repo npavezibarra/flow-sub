@@ -102,6 +102,7 @@ class Flow_Sub_WooCommerce
         echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-date"><span class="nobr">' . esc_html__('Plan', 'flow-sub') . '</span></th>';
         echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-status"><span class="nobr">' . esc_html__('Estado', 'flow-sub') . '</span></th>';
         echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-total"><span class="nobr">' . esc_html__('Inicio', 'flow-sub') . '</span></th>';
+        echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-actions"><span class="nobr">' . esc_html__('Acciones', 'flow-sub') . '</span></th>';
         echo '</tr>';
         echo '</thead>';
         echo '<tbody>';
@@ -115,17 +116,55 @@ class Flow_Sub_WooCommerce
 
             $plan_name = $sub_data['plan_name'] ?? $sub_data['planId'] ?? '-';
             $status = $sub_data['status'] ?? 0;
-            $status_label = (1 === (int) $status) ? 'Activa' : 'Inactiva';
             $start_date = $sub_data['subscription_start'] ?? '-';
+
+            // Check for unpaid invoices
+            $payment_url = '';
+            $is_unpaid = false;
+            if (!empty($sub_data['invoices']) && is_array($sub_data['invoices'])) {
+                // Sort invoices by date desc to get the latest? Or just check any unpaid.
+                // Usually we care about the latest one or any pending.
+                foreach ($sub_data['invoices'] as $invoice) {
+                    if (isset($invoice['status']) && 0 === (int) $invoice['status']) {
+                        $is_unpaid = true;
+                        $payment_url = $invoice['paymentUrl'] ?? $invoice['url'] ?? '';
+
+                        // If paymentUrl is empty, try to construct it from token
+                        if (empty($payment_url) && !empty($invoice['token'])) {
+                            $payment_url = 'https://www.flow.cl/app/web/pay.php?token=' . $invoice['token'];
+                        }
+
+                        // If we found an unpaid invoice, we can stop and show this status.
+                        // Ideally we pick the latest one if multiple exist.
+                        break;
+                    }
+                }
+            }
+
+            $status_label = (1 === (int) $status) ? 'Activa' : 'Inactiva';
+            if ($is_unpaid) {
+                // Make the status label a link if we have a URL
+                if (!empty($payment_url)) {
+                    $status_label = '<a href="' . esc_url($payment_url) . '" target="_blank">' . esc_html__('Pendiente de pago', 'flow-sub') . '</a>';
+                } else {
+                    $status_label = 'Pendiente de pago';
+                }
+            }
 
             echo '<tr class="woocommerce-orders-table__row woocommerce-orders-table__row--status-completed order">';
             echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-number" data-title="ID">' . esc_html($sub_id) . '</td>';
             echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-date" data-title="Plan">' . esc_html($plan_name) . '</td>';
-            echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-status" data-title="Estado">' . esc_html($status_label) . '</td>';
+            echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-status" data-title="Estado">' . wp_kses_post($status_label) . '</td>';
             echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-total" data-title="Inicio">' . esc_html($start_date) . '</td>';
+            echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-actions" data-title="Acciones">';
+            if ($is_unpaid && !empty($payment_url)) {
+                echo '<a href="' . esc_url($payment_url) . '" class="woocommerce-button button view" target="_blank">' . esc_html__('Pagar Ahora', 'flow-sub') . '</a>';
+            } else {
+                echo '-';
+            }
+            echo '</td>';
             echo '</tr>';
         }
-
         echo '</tbody>';
         echo '</table>';
     }
