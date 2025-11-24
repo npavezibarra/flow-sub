@@ -44,6 +44,15 @@ function flow_sub_init()
 
 	// Include Flow Post Setup
 	require_once FLOW_SUB_PATH . 'flow-post-module/class-flow-post-setup.php';
+
+	// Include Flow Post Creation Handler
+	require_once FLOW_SUB_PATH . 'flow-post-module/class-flow-post-creation.php';
+
+	// Include Flow Post Utilities
+	require_once FLOW_SUB_PATH . 'flow-post-module/flow-post-utilities.php';
+
+	// Include Helper Functions
+	require_once FLOW_SUB_PATH . 'includes/flow-sub-helper.php';
 }
 add_action('plugins_loaded', 'flow_sub_init');
 
@@ -52,6 +61,9 @@ add_action('plugins_loaded', 'flow_sub_init');
  */
 function flow_post_add_roles()
 {
+	// Remove existing role to ensure updates are applied
+	remove_role('flow_subscriber');
+
 	// 1. Define the base Subscriber role capabilities (mostly 'read')
 	$subscriber_role = get_role('subscriber');
 	$subscriber_caps = $subscriber_role ? $subscriber_role->capabilities : [];
@@ -60,11 +72,12 @@ function flow_post_add_roles()
 	$flow_subscriber_caps = [
 		'read' => true, // Must be able to read
 		'read_flow_post' => true, // Required to view a single Flow Post
-		'edit_flow_posts' => false, // Can't edit or create posts
+		'access_flow_feed' => true, // NEW: Explicit capability for feed access
+		// 'edit_flow_posts' => false, // REMOVED: Do not explicitly deny, just omit
 		'read_private_flow_posts' => true, // Can read Flow posts marked as private
 		// Custom capabilities needed for commenting:
 		'edit_comment' => true, // Allows commenting/editing their own comment
-		'moderate_comments' => false,
+		// 'moderate_comments' => false, // REMOVED: Do not explicitly deny
 	];
 
 	// 3. Create the new role by merging subscriber caps with flow caps
@@ -87,7 +100,13 @@ function flow_post_add_roles()
 			'edit_others_flow_posts',
 			'publish_flow_posts',
 			'read_private_flow_posts',
+			'edit_published_flow_posts', // Needed to edit published posts
+			'delete_published_flow_posts',
+			'delete_others_flow_posts',
+			'delete_private_flow_posts',
+			'delete_flow_posts',
 			'create_posts', // Just in case
+			'access_flow_feed', // NEW
 		];
 		foreach ($admin_caps as $cap) {
 			$admin_role->add_cap($cap, true);
@@ -95,7 +114,7 @@ function flow_post_add_roles()
 	}
 }
 register_activation_hook(__FILE__, 'flow_post_add_roles');
-// Temporary: Force role update on admin init to fix missing caps for existing installs
+// Force role update on admin init to ensure caps are present
 add_action('admin_init', 'flow_post_add_roles');
 
 /**
