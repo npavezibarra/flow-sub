@@ -12,6 +12,45 @@ class Flow_Post_Setup
     {
         add_action('init', [self::class, 'register_flow_post_type']);
         add_action('template_redirect', [self::class, 'restrict_flow_post_access']);
+
+        // Hook into wp_loaded, which runs very early on every public page request 
+        // after WordPress core is set up, ensuring the role is correct.
+        add_action('wp_loaded', [self::class, 'flow_sync_user_role']);
+    }
+
+    /**
+     * Synchronizes the user's role based on their Flow subscription status.
+     * This is the "lazy" role manager for your architecture.
+     */
+    public static function flow_sync_user_role()
+    {
+        if (!is_user_logged_in()) {
+            return;
+        }
+
+        $user = wp_get_current_user();
+        $user_id = $user->ID;
+        $role_slug = 'flow_subscriber';
+
+        // 1. Get the real-time active status from the Flow Sub plugin's logic (via the helper).
+        // Ensure helper is loaded if not already (it should be via flow-sub.php, but safety first)
+        if (!function_exists('flow_sub_is_user_active')) {
+            return;
+        }
+
+        $is_active_in_flow = flow_sub_is_user_active($user_id);
+
+        // 2. Check the user's current roles.
+        $has_flow_role = in_array($role_slug, (array) $user->roles);
+
+        if ($is_active_in_flow && !$has_flow_role) {
+            // User is active in Flow but doesn't have the role -> PROMOTE
+            $user->add_role($role_slug);
+
+        } elseif (!$is_active_in_flow && $has_flow_role) {
+            // User is NOT active in Flow but still has the role -> DEMOTE
+            $user->remove_role($role_slug);
+        }
     }
 
     /**
