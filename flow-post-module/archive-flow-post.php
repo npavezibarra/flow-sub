@@ -4,8 +4,6 @@
  * Template Post Type: flow-post
  */
 
-// get_header(); // Removed to match standalone design
-
 // Check if the current user is an administrator (can manage options)
 $is_admin = current_user_can('manage_options');
 
@@ -14,11 +12,13 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
 
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html <?php language_attributes(); ?>>
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset="<?php bloginfo('charset'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php wp_head(); ?>
+
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Configure Tailwind for custom colors and Inter font -->
@@ -130,7 +130,12 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
     </style>
 </head>
 
-<body class="font-sans min-h-screen">
+<body <?php body_class('font-sans min-h-screen'); ?>>
+
+<?php
+// Load the WordPress theme header template part
+echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
+?>
 
     <div class="flex justify-center py-8">
         <div class="w-full max-w-xl space-y-8 px-4 sm:px-0">
@@ -163,7 +168,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                 <!-- Admin Post Creation Form -->
                 <div id="flow-post-creation-form" class="form-hidden mb-8">
                     <div class="post-card bg-card-bg rounded-xl border border-primary-blue overflow-hidden p-6 md:p-8">
-                        <h2 class="text-xl font-bold text-primary-blue mb-6 border-b border-border-light pb-4">Nueva Publicación Flow
+                        <h2 class="text-xl font-bold text-primary-blue mb-6 border-b border-border-light pb-4">Nueva
+                            Publicación Flow
                         </h2>
                         <form id="flow-post-form" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post"
                             enctype="multipart/form-data" class="space-y-5">
@@ -180,13 +186,15 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                             <div>
                                 <label for="post-text" class="block text-sm font-medium text-gray-700 mb-1">Texto del
                                     Cuerpo</label>
-                                <textarea id="post-text" name="post-text" rows="3" placeholder="Comparte tus pensamientos..."
+                                <textarea id="post-text" name="post-text" rows="3"
+                                    placeholder="Comparte tus pensamientos..."
                                     class="comment-input w-full p-3 border border-gray-300 rounded-lg transition-shadow text-sm outline-none shadow-inner resize-none"
                                     required></textarea>
                             </div>
 
                             <div>
-                                <label for="video-link" class="block text-sm font-medium text-gray-700 mb-1">Enlace de Video de
+                                <label for="video-link" class="block text-sm font-medium text-gray-700 mb-1">Enlace de Video
+                                    de
                                     YouTube (Opcional)</label>
                                 <input type="url" id="video-link" name="video-link" placeholder="https://youtu.be/..."
                                     class="comment-input w-full p-3 border border-gray-300 rounded-lg transition-shadow text-sm outline-none shadow-inner">
@@ -204,7 +212,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-12 5h8a2 2 0 002-2v-7a2 2 0 00-2-2H8a2 2 0 00-2 2v7a2 2 0 002 2z" />
                                     </svg>
-                                    <p class="mt-1 text-sm text-gray-600 font-medium">Haz clic para buscar o arrastra imágenes</p>
+                                    <p class="mt-1 text-sm text-gray-600 font-medium">Haz clic para buscar o arrastra
+                                        imágenes</p>
                                 </div>
                                 <div id="file-list" class="mt-2 text-sm text-gray-600 space-y-1"></div>
                             </div>
@@ -335,7 +344,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                                 <p class="text-sm font-semibold text-gray-900">
                                                     <?php echo esc_html($comment->comment_author); ?> <span
                                                         class="text-xs font-normal text-gray-500 ml-1">·
-                                                        hace <?php echo human_time_diff(strtotime($comment->comment_date), current_time('timestamp')); ?></span>
+                                                        hace
+                                                        <?php echo human_time_diff(strtotime($comment->comment_date), current_time('timestamp')); ?></span>
                                                 </p>
                                                 <p class="text-sm text-gray-700"><?php echo get_comment_text($comment); ?></p>
                                             </div>
@@ -445,7 +455,13 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
             }
         });
     </script>
-    // <?php get_footer(); ?>
+
+    <?php
+    // Load the WordPress theme footer template part
+    echo do_blocks('<!-- wp:template-part {"slug":"footer","area":"footer","tagName":"footer"} /-->');
+
+    wp_footer();
+    ?>
 </body>
 
 </html>
