@@ -50,6 +50,7 @@ class Flow_Sub_Admin
     {
         register_setting('flow_sub_options', 'flow_sub_api_key', array($this, 'encrypt_key'));
         register_setting('flow_sub_options', 'flow_sub_secret_key', array($this, 'encrypt_key'));
+        register_setting('flow_sub_subscriptions_options', 'flow_sub_subscriptions_content');
     }
 
     /**
@@ -93,6 +94,8 @@ class Flow_Sub_Admin
                     class="nav-tab <?php echo 'flow_tokens' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Flow Tokens', 'flow-sub'); ?></a>
                 <a href="?page=flow-sub&tab=api_tester"
                     class="nav-tab <?php echo 'api_tester' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('API Tester', 'flow-sub'); ?></a>
+                <a href="?page=flow-sub&tab=subscriptions"
+                    class="nav-tab <?php echo 'subscriptions' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Suscripciones', 'flow-sub'); ?></a>
             </nav>
 
             <?php if ('flow_tokens' === $active_tab): ?>
@@ -114,6 +117,26 @@ class Flow_Sub_Admin
                             </td>
                         </tr>
                     </table>
+                    <?php submit_button(); ?>
+                </form>
+            <?php elseif ('subscriptions' === $active_tab): ?>
+                <form action="options.php" method="post">
+                    <?php
+                    settings_fields('flow_sub_subscriptions_options');
+                    do_settings_sections('flow_sub_subscriptions_options');
+                    ?>
+                    <h2><?php esc_html_e('Contenido de Suscripciones', 'flow-sub'); ?></h2>
+                    <p><?php esc_html_e('Este contenido se mostrará debajo de la tabla de suscripciones en la cuenta del usuario.', 'flow-sub'); ?>
+                    </p>
+                    <?php
+                    $content = get_option('flow_sub_subscriptions_content', '');
+                    wp_editor($content, 'flow_sub_subscriptions_content', array(
+                        'textarea_name' => 'flow_sub_subscriptions_content',
+                        'media_buttons' => true,
+                        'textarea_rows' => 10,
+                        'teeny' => false
+                    ));
+                    ?>
                     <?php submit_button(); ?>
                 </form>
             <?php elseif ('api_tester' === $active_tab): ?>

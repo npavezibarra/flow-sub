@@ -220,7 +220,7 @@ class Flow_Sub_WooCommerce
         echo '<div class="flow-sub-wrapper container-content">';
         echo '<h3>' . esc_html__('Mis Suscripciones', 'flow-sub') . '</h3>';
 
-        echo '<table class="account-orders-table woocommerce-orders-table woocommerce-MyAccount-orders shop_table shop_table_responsive my_account_orders">';
+        echo '<table id="flow-subscriptions-table" class="account-orders-table woocommerce-orders-table woocommerce-MyAccount-orders shop_table shop_table_responsive my_account_orders">';
         echo '<thead>';
         echo '<tr>';
         echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-date"><span class="nobr">' . esc_html__('Plan y ID', 'flow-sub') . '</span></th>';
@@ -332,6 +332,13 @@ class Flow_Sub_WooCommerce
         }
         echo '</tbody>';
         echo '</table>';
+
+        $subscriptions_content = get_option('flow_sub_subscriptions_content', '');
+        echo '<div id="flow-subscriptions-after-table">';
+        if (!empty($subscriptions_content)) {
+            echo do_shortcode(wpautop($subscriptions_content));
+        }
+        echo '</div>';
         echo '</div>'; // End container-content
     }
 

@@ -44,22 +44,96 @@ class Flow_Sub_Shortcode
             return '';
         }
 
-        if (isset($_GET['flow_subscribed']) && '1' === $_GET['flow_subscribed']) {
+        if (isset($_GET['flow_subscribed']) && '1' === $_GET['flow_subscribed'] && isset($_GET['flow_plan_id']) && $_GET['flow_plan_id'] === $atts['plan']) {
             return '<div class="flow-subscription-success-message" style="background-color: #d4edda; color: #155724; padding: 15px; border: 1px solid #c3e6cb; border-radius: 4px;">' .
-                esc_html__('Hemos enviado un correo para que ingreses tu información de pago y suscribirte automáticamente al sitio EL VIllegas', 'flow-sub') .
+                esc_html__('Hemos enviado un correo electrónico a tu bandeja con un enlace para que completes tu información de pago. Este mensaje proviene de nuestro proveedor de servicios, Flow, bajo la dirección info@flow.cl. Al finalizar, tu suscripción al sitio El Villegas se activará de forma automática.', 'flow-sub') .
                 '</div>';
+        }
+
+        $is_subscribed = false;
+        if (is_user_logged_in()) {
+            $user_id = get_current_user_id();
+            $api_key = get_option('flow_sub_api_key');
+            $secret_key = get_option('flow_sub_secret_key');
+
+            if ($api_key && $secret_key) {
+                $cache_key = 'flow_user_subs_' . $user_id;
+                $cached_data = get_transient($cache_key);
+
+                if (false === $cached_data) {
+                    require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
+                    $api = new Flow_Sub_API($api_key, $secret_key);
+                    $subs = get_user_meta($user_id, 'flow_user_subscriptions', true);
+                    $cached_data = array();
+                    if (is_array($subs)) {
+                        foreach ($subs as $sub_id) {
+                            $sub_data = $api->get_subscription($sub_id);
+                            if (!is_wp_error($sub_data)) {
+                                $cached_data[$sub_id] = $sub_data;
+                            }
+                        }
+                        set_transient($cache_key, $cached_data, HOUR_IN_SECONDS);
+                    }
+                }
+
+                if (is_array($cached_data)) {
+                    foreach ($cached_data as $sub) {
+                        if (isset($sub['planId']) && $sub['planId'] == $atts['plan'] && isset($sub['status']) && 1 === (int) $sub['status']) {
+                            $is_subscribed = true;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         ob_start();
         ?>
-        <form method="post"
-            onsubmit="var btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerText = '<?php echo esc_js(__('Procesando...', 'flow-sub')); ?>';">
-            <?php wp_nonce_field('flow_subscribe_action', 'flow_subscribe_nonce'); ?>
-            <input type="hidden" name="flow_plan_id" value="<?php echo esc_attr($atts['plan']); ?>" />
-            <input type="hidden" name="action" value="flow_subscribe" />
-            <button type="submit" class="button flow-subscribe-button"><?php esc_html_e('SUSCRIBIR', 'flow-sub'); ?></button>
-        </form>
+        <style>
+            .minimal-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px 16px;
+                border-radius: 8px;
+                font-size: 0.875rem;
+                font-weight: 500;
+                text-decoration: none;
+                transition: all 0.2s ease-in-out;
+                border: 1px solid transparent;
+                cursor: pointer;
+                margin-top: 4px;
+            }
+
+            .btn-primary {
+                color: #065f46;
+                border-color: #065f46;
+                background-color: transparent;
+            }
+
+            .btn-primary:hover {
+                background-color: #ecfdf5;
+                box-shadow: 0 2px 4px rgba(6, 95, 70, 0.2);
+                color: #065f46;
+            }
+        </style>
         <?php
+
+        if ($is_subscribed) {
+            echo '<div class="flow-subscribed-badge" style="display: inline-flex; align-items: center; font-weight: 600; color: #155724;">';
+            echo '<span style="margin-right: 5px;">✅</span> ' . esc_html__('Suscrito', 'flow-sub');
+            echo '</div>';
+        } else {
+            ?>
+            <form method="post"
+                onsubmit="var btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerText = '<?php echo esc_js(__('Procesando...', 'flow-sub')); ?>';">
+                <?php wp_nonce_field('flow_subscribe_action', 'flow_subscribe_nonce'); ?>
+                <input type="hidden" name="flow_plan_id" value="<?php echo esc_attr($atts['plan']); ?>" />
+                <input type="hidden" name="action" value="flow_subscribe" />
+                <button type="submit" class="minimal-button btn-primary"><?php esc_html_e('SUSCRIBIR', 'flow-sub'); ?></button>
+            </form>
+            <?php
+        }
         return ob_get_clean();
     }
 
@@ -316,7 +390,7 @@ class Flow_Sub_Shortcode
         }
 
         // Redirect back to the page with a success flag.
-        wp_redirect(add_query_arg('flow_subscribed', '1', wp_get_referer()));
+        wp_redirect(add_query_arg(array('flow_subscribed' => '1', 'flow_plan_id' => $plan_id), wp_get_referer()));
         exit;
     }
 }
