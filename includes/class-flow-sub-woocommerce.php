@@ -104,11 +104,11 @@ class Flow_Sub_WooCommerce
             }
             .container-content {
                 max-width: 1000px;
-                margin: 40px auto;
+                margin: 0 auto;
                 padding: 20px;
                 background-color: #ffffff;
                 border-radius: 12px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+                box-shadow: none;
             }
             .flow-sub-wrapper h3 {
                 font-weight: 700;
@@ -309,7 +309,7 @@ class Flow_Sub_WooCommerce
             echo '<div class="flex flex-col md:flex-row md:justify-start items-center space-y-2 md:space-y-0">';
 
             if ($is_unpaid && !empty($payment_url) && 4 !== (int) $status) {
-                echo '<a href="' . esc_url($payment_url) . '" class="minimal-button btn-primary" target="_blank">' . esc_html__('Pagar Ahora', 'flow-sub') . '</a>';
+                echo '<a href="' . esc_url($payment_url) . '" class="minimal-button btn-primary" target="_blank">' . esc_html__('Pagar', 'flow-sub') . '</a>';
             }
 
             // Cancel button
