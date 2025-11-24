@@ -136,11 +136,48 @@ class Flow_Sub_Shortcode
                 update_user_meta($user->ID, 'flow_customer_id', $customer_id);
             } else {
                 // Handle case where customer might already exist or other error
-                // For now, let's try to handle the specific error if Flow returns one, or just fail
-                if (isset($customer_response['message'])) {
-                    wp_die(esc_html('Error creating customer: ' . $customer_response['message']));
+                $error_message = $customer_response['message'] ?? '';
+
+                // Check for "customer exists" error (externalId conflict)
+                // The error message is typically "Internal Server Error - There is a customer with this externalId: X"
+                if (stripos($error_message, 'externalId') !== false) {
+                    // Try to find the customer by listing them
+                    $customers_response = $api->get_customers(array('externalId' => $user->ID));
+
+                    $found_customer_id = null;
+
+                    if (!is_wp_error($customers_response) && isset($customers_response['data']) && is_array($customers_response['data'])) {
+                        foreach ($customers_response['data'] as $customer) {
+                            if (isset($customer['externalId']) && (string) $customer['externalId'] === (string) $user->ID) {
+                                $found_customer_id = $customer['customerId'];
+                                break;
+                            }
+                        }
+                    }
+
+                    // Fallback for simple array response
+                    if (!$found_customer_id && !is_wp_error($customers_response) && is_array($customers_response)) {
+                        foreach ($customers_response as $customer) {
+                            if (isset($customer['externalId']) && (string) $customer['externalId'] === (string) $user->ID) {
+                                $found_customer_id = $customer['customerId'];
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($found_customer_id) {
+                        $customer_id = $found_customer_id;
+                        update_user_meta($user->ID, 'flow_customer_id', $found_customer_id);
+                    } else {
+                        // If we couldn't find it even though it says it exists, fail with the original message
+                        wp_die(esc_html('Error creating customer: ' . $error_message));
+                    }
+                } else {
+                    if (!empty($error_message)) {
+                        wp_die(esc_html('Error creating customer: ' . $error_message));
+                    }
+                    wp_die(esc_html__('Failed to create customer.', 'flow-sub'));
                 }
-                wp_die(esc_html__('Failed to create customer.', 'flow-sub'));
             }
         }
 
