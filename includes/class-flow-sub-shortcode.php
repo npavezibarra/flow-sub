@@ -141,8 +141,11 @@ class Flow_Sub_Shortcode
                 // Check for "customer exists" error (externalId conflict)
                 // The error message is typically "Internal Server Error - There is a customer with this externalId: X"
                 if (stripos($error_message, 'externalId') !== false) {
+                    error_log('Flow Sub Debug: Customer exists error detected. Attempting recovery for externalId: ' . $user->ID);
+
                     // Try to find the customer by listing them
                     $customers_response = $api->get_customers(array('externalId' => $user->ID));
+                    error_log('Flow Sub Debug: get_customers response: ' . print_r($customers_response, true));
 
                     $found_customer_id = null;
 
@@ -150,6 +153,7 @@ class Flow_Sub_Shortcode
                         foreach ($customers_response['data'] as $customer) {
                             if (isset($customer['externalId']) && (string) $customer['externalId'] === (string) $user->ID) {
                                 $found_customer_id = $customer['customerId'];
+                                error_log('Flow Sub Debug: Found customer in data wrapper: ' . $found_customer_id);
                                 break;
                             }
                         }
@@ -160,6 +164,7 @@ class Flow_Sub_Shortcode
                         foreach ($customers_response as $customer) {
                             if (isset($customer['externalId']) && (string) $customer['externalId'] === (string) $user->ID) {
                                 $found_customer_id = $customer['customerId'];
+                                error_log('Flow Sub Debug: Found customer in simple array: ' . $found_customer_id);
                                 break;
                             }
                         }
@@ -168,7 +173,9 @@ class Flow_Sub_Shortcode
                     if ($found_customer_id) {
                         $customer_id = $found_customer_id;
                         update_user_meta($user->ID, 'flow_customer_id', $found_customer_id);
+                        error_log('Flow Sub Debug: Recovered customer ID: ' . $customer_id);
                     } else {
+                        error_log('Flow Sub Debug: Could not find customer with externalId ' . $user->ID . ' in list.');
                         // If we couldn't find it even though it says it exists, fail with the original message
                         wp_die(esc_html('Error creating customer: ' . $error_message));
                     }
