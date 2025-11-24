@@ -159,9 +159,42 @@ class Flow_Sub_Shortcode
 
             $error_msg = is_wp_error($subscription_response) ? $subscription_response->get_error_message() : ($subscription_response['message'] ?? '');
 
-            // Simple check for "customer" in error message as a heuristic
-            if (stripos($error_msg, 'customer') !== false || stripos($error_msg, 'cliente') !== false) {
-                // Retry creating customer
+            // Check for "customer exists" error (externalId conflict)
+            if (stripos($error_msg, 'externalId') !== false) {
+                // Try to find the customer by listing them
+                // We assume get_customers might support filtering or we filter manually
+                $customers_response = $api->get_customers(array('externalId' => $user->ID)); // Try filtering
+
+                $found_customer_id = null;
+
+                if (!is_wp_error($customers_response) && isset($customers_response['data']) && is_array($customers_response['data'])) {
+                    foreach ($customers_response['data'] as $customer) {
+                        if (isset($customer['externalId']) && (string) $customer['externalId'] === (string) $user->ID) {
+                            $found_customer_id = $customer['customerId'];
+                            break;
+                        }
+                    }
+                }
+
+                // If not found in 'data' (maybe response structure is different or filter didn't work and we need to paginate? 
+                // For now, let's assume standard list response structure or simple list)
+                if (!$found_customer_id && !is_wp_error($customers_response) && is_array($customers_response)) {
+                    // Handle case where response is just the array of customers (no 'data' wrapper)
+                    foreach ($customers_response as $customer) {
+                        if (isset($customer['externalId']) && (string) $customer['externalId'] === (string) $user->ID) {
+                            $found_customer_id = $customer['customerId'];
+                            break;
+                        }
+                    }
+                }
+
+                if ($found_customer_id) {
+                    update_user_meta($user->ID, 'flow_customer_id', $found_customer_id);
+                    $subscription_data['customerId'] = $found_customer_id;
+                    $subscription_response = $api->create_subscription($subscription_data);
+                }
+            } elseif (stripos($error_msg, 'customer') !== false || stripos($error_msg, 'cliente') !== false) {
+                // Retry creating customer (previous logic for "not found" which implies ID mismatch)
                 $customer_data = array(
                     'name' => $user->display_name,
                     'email' => $user->user_email,

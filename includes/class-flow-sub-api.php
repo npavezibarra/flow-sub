@@ -181,6 +181,17 @@ class Flow_Sub_API
     }
 
     /**
+     * Get customers.
+     *
+     * @param array $params Query parameters (e.g., start, limit, filter).
+     * @return array|WP_Error List of customers or WP_Error.
+     */
+    public function get_customers($params = array())
+    {
+        return $this->get('customer/list', $params);
+    }
+
+    /**
      * Create a subscription.
      *
      * @param array $data Subscription data (customerId, planId).
