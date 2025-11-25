@@ -155,26 +155,94 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
     echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
     ?>
 
+    <!-- Filter Button (Fixed on Left, moves with panel) -->
+    <button id="filter-button"
+        class="fixed left-4 top-32 z-50 bg-black border-2 border-black p-3 rounded-lg shadow-lg hover:bg-gray-800 transition-all duration-300">
+        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+        </svg>
+    </button>
+
+    <!-- Filter Panel (Sliding from Left) -->
+    <div id="filter-panel"
+        class="fixed left-0 top-20 h-[calc(100vh-5rem)] w-80 bg-white shadow-2xl z-40 transform -translate-x-full transition-transform duration-300 ease-in-out">
+        <div class="h-full overflow-y-auto" style="padding: 3rem 1.5rem;">
+            <!-- Panel Header -->
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-gray-900 text-left">Filtros</h2>
+            </div>
+
+            <!-- Post Type Filter -->
+            <div class="mb-8">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Tipo de post</h3>
+                <div class="space-y-3">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
+                        <span class="ml-3 text-gray-700">Video</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
+                        <span class="ml-3 text-gray-700">Foto</span>
+                    </label>
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
+                        <span class="ml-3 text-gray-700">Texto</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Date Range Filter -->
+            <div class="mb-8">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Fecha</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                        <input type="date"
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                        <input type="date"
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Apply/Clear Buttons -->
+            <div class="flex gap-3 mt-6">
+                <button
+                    class="flex-1 bg-black text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors">Aplicar</button>
+                <button
+                    class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-300 transition-colors">Limpiar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay for filter panel -->
+    <div id="filter-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden transition-opacity duration-300">
+    </div>
+
+    <?php if ($is_admin): ?>
+        <!-- Create Post Button (Fixed on Left, below filter, moves with panel) -->
+        <button id="toggle-post-form"
+            class="fixed left-4 top-48 z-50 bg-black border-2 border-black p-3 rounded-lg shadow-lg hover:bg-gray-800 transition-all duration-300">
+            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+        </button>
+    <?php endif; ?>
+
     <div class="flex justify-center py-8">
         <div class="w-full max-w-xl space-y-8 px-4 sm:px-0">
             <h1 class="text-3xl font-extrabold text-gray-900 mb-8 text-center">Feed de Contenido Flow</h1>
 
             <?php if ($is_admin): ?>
-                <!-- Admin Post Creation Toggle -->
-                <div class="flex justify-end mb-6">
-                    <button id="toggle-post-form"
-                        class="bg-primary-blue text-white p-3 px-6 rounded-xl font-bold hover:bg-opacity-90 transition-opacity flex items-center shadow-lg">
-                        <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Crear Publicación
-                    </button>
-                </div>
-
                 <!-- Status Messages -->
                 <?php if ($flow_status === 'success'): ?>
-                    <div class="bg-accent-green text-white p-4 rounded-lg shadow-md text-center font-semibold mb-6">
+                    <div id="success-message"
+                        class="bg-accent-green text-white p-4 rounded-lg shadow-md text-center font-semibold mb-6 transition-all duration-500">
                         ✅ ¡Publicación Flow creada exitosamente!
                     </div>
                 <?php elseif ($flow_status === 'post_error'): ?>
@@ -185,8 +253,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
 
                 <!-- Admin Post Creation Form -->
                 <div id="flow-post-creation-form" class="form-hidden mb-8">
-                    <div class="post-card bg-card-bg rounded-xl border border-primary-blue overflow-hidden p-6 md:p-8">
-                        <h2 class="text-xl font-bold text-primary-blue mb-6 border-b border-border-light pb-4">Nueva
+                    <div class="post-card bg-card-bg rounded-xl border border-black overflow-hidden p-6 md:p-8">
+                        <h2 class="text-xl font-bold text-black mb-6 border-b border-border-light pb-4">Nueva
                             Publicación Flow
                         </h2>
                         <form id="flow-post-form" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post"
@@ -198,16 +266,17 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                 <label for="post-title" class="block text-sm font-medium text-gray-700 mb-1">Título</label>
                                 <input type="text" id="post-title" name="post-title" placeholder="Un título atractivo..."
                                     class="comment-input w-full p-3 border border-gray-300 rounded-lg transition-shadow text-base outline-none shadow-inner"
-                                    maxlength="100" required>
+                                    maxlength="100" required
+                                    oninvalid="this.setCustomValidity('Por favor, completa este campo.')"
+                                    oninput="this.setCustomValidity('')">
                             </div>
 
                             <div>
                                 <label for="post-text" class="block text-sm font-medium text-gray-700 mb-1">Texto del
-                                    Cuerpo</label>
+                                    Cuerpo (Opcional)</label>
                                 <textarea id="post-text" name="post-text" rows="3"
                                     placeholder="Comparte tus pensamientos..."
-                                    class="comment-input w-full p-3 border border-gray-300 rounded-lg transition-shadow text-sm outline-none shadow-inner resize-none"
-                                    required></textarea>
+                                    class="comment-input w-full p-3 border border-gray-300 rounded-lg transition-shadow text-sm outline-none shadow-inner resize-none"></textarea>
                             </div>
 
                             <div>
@@ -238,8 +307,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
 
                             <div class="pt-4 flex justify-end">
                                 <button type="submit"
-                                    class="bg-primary-blue text-white p-3 px-6 rounded-xl font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity shadow-lg">Publicar
-                                    Flow</button>
+                                    class="bg-black text-white py-2 px-5 rounded-md font-semibold text-sm tracking-wider hover:bg-gray-800 transition-colors shadow-lg">Publicar</button>
                             </div>
                         </form>
                     </div>
@@ -334,7 +402,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                         <div class="p-4 md:p-6">
 
                             <!-- 2. Post Title -->
-                            <h2 class="text-2xl font-extrabold text-gray-900 mb-2">
+                            <h2 class="text-2xl font-extrabold text-gray-900 mb-2 text-left">
                                 <?php the_title(); ?>
                             </h2>
 
@@ -415,8 +483,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                             <!-- 6. Comment Input Bar (Only for Subscribers) -->
                             <?php if ($is_subscriber): ?>
                                 <div class="mt-6 pt-4 border-t border-border-light">
-                                    <div class="flex items-start space-x-3">
-                                        <?php 
+                                    <div class="flex items-center space-x-3">
+                                        <?php
                                         // Get custom profile picture for current user
                                         $current_user_avatar = get_user_meta(get_current_user_id(), 'profile_picture', true);
                                         if (empty($current_user_avatar)) {
@@ -426,7 +494,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                         <img class="w-10 h-10 rounded-full object-cover shrink-0"
                                             src="<?php echo esc_url($current_user_avatar); ?>" alt="My Avatar">
                                         <form action="<?php echo esc_url(site_url('/wp-comments-post.php')); ?>" method="post"
-                                            class="flex-grow flex space-x-2 flow-comment-form">
+                                            class="flex-grow flex items-center space-x-2 flow-comment-form">
                                             <input type="hidden" name="comment_post_ID" value="<?php echo $post_id; ?>" />
                                             <input type="hidden" name="redirect_to"
                                                 value="<?php echo esc_url(get_post_type_archive_link('flow-post')); ?>" />
@@ -434,7 +502,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                                 class="comment-input flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-blue focus:border-primary-blue transition-shadow shadow-inner text-sm outline-none"
                                                 required>
                                             <button type="submit"
-                                                class="bg-primary-blue text-white p-3 rounded-xl font-semibold hover:bg-opacity-90 transition-opacity">Publicar</button>
+                                                class="bg-black text-white p-3 px-6 rounded-md font-semibold hover:bg-gray-800 transition-colors">Publicar</button>
                                         </form>
                                     </div>
                                 </div>
@@ -505,9 +573,44 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                     formContainer.classList.toggle('form-hidden');
                     const isHidden = formContainer.classList.contains('form-hidden');
                     toggleButton.innerHTML = isHidden
-                        ? '<svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>Create Post'
-                        : '<svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>Hide Form';
+                        ? '<svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>'
+                        : '<svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
                 });
+            }
+
+            // Filter Panel Toggle Logic
+            const filterButton = document.getElementById('filter-button');
+            const filterPanel = document.getElementById('filter-panel');
+            const filterOverlay = document.getElementById('filter-overlay');
+            const createPostButton = document.getElementById('toggle-post-form');
+
+            if (filterButton && filterPanel && filterOverlay) {
+                const toggleFilterPanel = () => {
+                    const isOpen = !filterPanel.classList.contains('-translate-x-full');
+
+                    if (isOpen) {
+                        // Close panel
+                        filterPanel.classList.add('-translate-x-full');
+                        filterOverlay.classList.add('hidden');
+                        // Move buttons back to original position
+                        filterButton.style.transform = 'translateX(0)';
+                        if (createPostButton) {
+                            createPostButton.style.transform = 'translateX(0)';
+                        }
+                    } else {
+                        // Open panel
+                        filterPanel.classList.remove('-translate-x-full');
+                        filterOverlay.classList.remove('hidden');
+                        // Move buttons to the right (panel width 320px + 20px gap = 340px)
+                        filterButton.style.transform = 'translateX(340px)';
+                        if (createPostButton) {
+                            createPostButton.style.transform = 'translateX(340px)';
+                        }
+                    }
+                };
+
+                filterButton.addEventListener('click', toggleFilterPanel);
+                filterOverlay.addEventListener('click', toggleFilterPanel);
             }
 
             // Photo Upload Logic (Simplified)
@@ -516,8 +619,10 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
             const fileList = document.getElementById('file-list');
 
             if (photoUploadArea && photoUploadInput) {
+                // Click to upload
                 photoUploadArea.addEventListener('click', () => photoUploadInput.click());
 
+                // Handle file selection
                 photoUploadInput.addEventListener('change', (e) => {
                     fileList.innerHTML = '';
                     Array.from(e.target.files).slice(0, 4).forEach(file => {
@@ -527,23 +632,64 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                         fileList.appendChild(item);
                     });
                 });
+
+                // Drag and drop handlers
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    photoUploadArea.addEventListener(eventName, preventDefaults, false);
+                });
+
+                function preventDefaults(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+
+                // Highlight drop area when dragging over it
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    photoUploadArea.addEventListener(eventName, () => {
+                        photoUploadArea.classList.add('drag-over');
+                    }, false);
+                });
+
+                ['dragleave', 'drop'].forEach(eventName => {
+                    photoUploadArea.addEventListener(eventName, () => {
+                        photoUploadArea.classList.remove('drag-over');
+                    }, false);
+                });
+
+                // Handle dropped files
+                photoUploadArea.addEventListener('drop', (e) => {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+
+                    // Update the file input with dropped files
+                    photoUploadInput.files = files;
+
+                    // Display file names
+                    fileList.innerHTML = '';
+                    Array.from(files).slice(0, 4).forEach(file => {
+                        const item = document.createElement('p');
+                        item.className = 'text-sm text-gray-700';
+                        item.textContent = `📷 ${file.name}`;
+                        fileList.appendChild(item);
+                    });
+                }, false);
             }
 
             // AJAX Comment Submission
             document.querySelectorAll('.flow-comment-form').forEach(form => {
                 form.addEventListener('submit', async (e) => {
                     e.preventDefault();
-                    
+
                     const formData = new FormData(form);
                     const commentInput = form.querySelector('input[name="comment"]');
                     const submitButton = form.querySelector('button[type="submit"]');
                     const postId = formData.get('comment_post_ID');
                     const commentText = formData.get('comment');
-                    
+
                     // Disable form during submission
                     submitButton.disabled = true;
                     submitButton.textContent = 'Publicando...';
-                    
+
                     try {
                         const response = await fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
                             method: 'POST',
@@ -557,22 +703,22 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                 nonce: '<?php echo wp_create_nonce('flow_comment_nonce'); ?>'
                             })
                         });
-                        
+
                         const result = await response.json();
-                        
+
                         if (result.success) {
                             // Clear the input
                             commentInput.value = '';
-                            
+
                             // Find the discussion section for this post
                             const discussionSection = form.closest('.post-card').querySelector('.space-y-4');
                             const noCommentsMsg = discussionSection.querySelector('.italic');
-                            
+
                             // Remove "no comments" message if it exists
                             if (noCommentsMsg) {
                                 noCommentsMsg.remove();
                             }
-                            
+
                             // Add the new comment to the top
                             const commentHTML = `
                                 <div class="flex space-x-3">
@@ -586,18 +732,18 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                     </div>
                                 </div>
                             `;
-                            
+
                             // Insert after the h3
                             const h3 = discussionSection.querySelector('h3');
                             h3.insertAdjacentHTML('afterend', commentHTML);
-                            
+
                             // Update comment count
                             const commentCountSpan = form.closest('.post-card').querySelector('.text-sm.text-gray-500.cursor-pointer');
                             if (commentCountSpan) {
                                 const currentCount = parseInt(commentCountSpan.textContent.match(/\d+/)[0]);
                                 commentCountSpan.innerHTML = `${currentCount + 1} Comentarios`;
                             }
-                            
+
                         } else {
                             alert('Error al publicar el comentario: ' + (result.data || 'Error desconocido'));
                         }
@@ -611,6 +757,29 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                     }
                 });
             });
+
+            // Auto-fade success message after 5 seconds
+            const successMessage = document.getElementById('success-message');
+            if (successMessage) {
+                setTimeout(() => {
+                    // Start fade out
+                    successMessage.style.opacity = '0';
+                    successMessage.style.maxHeight = successMessage.offsetHeight + 'px';
+
+                    // After fade completes, collapse the element
+                    setTimeout(() => {
+                        successMessage.style.maxHeight = '0';
+                        successMessage.style.marginBottom = '0';
+                        successMessage.style.paddingTop = '0';
+                        successMessage.style.paddingBottom = '0';
+
+                        // Remove from DOM after collapse animation
+                        setTimeout(() => {
+                            successMessage.remove();
+                        }, 500); // Match transition duration
+                    }, 500); // Match transition duration
+                }, 5000); // Wait 5 seconds before starting fade
+            }
         });
     </script>
 

@@ -27,11 +27,11 @@ class Flow_Post_Creation
 
         // --- 3. Gather and Sanitize Data ---
         $post_title = sanitize_text_field($_POST['post-title']);
-        $post_content = wp_kses_post($_POST['post-text']);
+        $post_content = isset($_POST['post-text']) ? wp_kses_post($_POST['post-text']) : '';
         $video_url = isset($_POST['video-link']) ? esc_url_raw($_POST['video-link']) : '';
 
-        // Basic validation
-        if (empty($post_title) || empty($post_content)) {
+        // Basic validation - only title is required
+        if (empty($post_title)) {
             wp_safe_redirect(add_query_arg('flow_status', 'missing_fields', get_post_type_archive_link('flow-post')));
             exit;
         }
@@ -92,8 +92,10 @@ class Flow_Post_Creation
                         'post_status' => 'inherit',
                     ]);
 
-                    // Check for errors and record the ID
+                    // Check for errors and resize the image
                     if (!is_wp_error($attachment_id) && $attachment_id > 0) {
+                        // Resize the uploaded image
+                        self::resize_uploaded_image($attachment_id);
                         $gallery_ids[] = $attachment_id;
                     }
 
@@ -114,6 +116,78 @@ class Flow_Post_Creation
         // --- 7. Success Redirect ---
         wp_safe_redirect(add_query_arg('flow_status', 'success', get_post_type_archive_link('flow-post')));
         exit;
+    }
+
+    /**
+     * Resize uploaded image to max 1600px and convert to JPG with quality compression
+     * 
+     * @param int $attachment_id The attachment ID
+     */
+    private static function resize_uploaded_image($attachment_id)
+    {
+        $file_path = get_attached_file($attachment_id);
+
+        if (!file_exists($file_path)) {
+            return;
+        }
+
+        // Get image editor
+        $image_editor = wp_get_image_editor($file_path);
+
+        if (is_wp_error($image_editor)) {
+            return;
+        }
+
+        // Get current dimensions
+        $size = $image_editor->get_size();
+        $width = $size['width'];
+        $height = $size['height'];
+
+        // Calculate new dimensions (max 1600px on longest side)
+        $max_dimension = 1600;
+
+        if ($width > $max_dimension || $height > $max_dimension) {
+            if ($width > $height) {
+                $new_width = $max_dimension;
+                $new_height = intval(($height / $width) * $max_dimension);
+            } else {
+                $new_height = $max_dimension;
+                $new_width = intval(($width / $height) * $max_dimension);
+            }
+
+            // Resize the image
+            $image_editor->resize($new_width, $new_height, false);
+        }
+
+        // Set quality to 75% (between 70-80% as requested)
+        $image_editor->set_quality(75);
+
+        // Get file info
+        $file_info = pathinfo($file_path);
+        $new_file_path = $file_info['dirname'] . '/' . $file_info['filename'] . '.jpg';
+
+        // Save as JPG
+        $saved = $image_editor->save($new_file_path, 'image/jpeg');
+
+        if (!is_wp_error($saved) && file_exists($saved['path'])) {
+            // Delete old file if it's not already a JPG
+            if (strtolower($file_info['extension']) !== 'jpg' && strtolower($file_info['extension']) !== 'jpeg') {
+                @unlink($file_path);
+            }
+
+            // Update attachment metadata
+            update_attached_file($attachment_id, $saved['path']);
+
+            // Update mime type
+            wp_update_post([
+                'ID' => $attachment_id,
+                'post_mime_type' => 'image/jpeg'
+            ]);
+
+            // Regenerate metadata
+            $metadata = wp_generate_attachment_metadata($attachment_id, $saved['path']);
+            wp_update_attachment_metadata($attachment_id, $metadata);
+        }
     }
 }
 Flow_Post_Creation::init();
