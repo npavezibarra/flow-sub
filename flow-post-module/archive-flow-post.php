@@ -261,7 +261,11 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                     // Author Info
                     $author_id = get_the_author_meta('ID');
                     $author_name = get_the_author_meta('display_name');
-                    $avatar_url = get_avatar_url($author_id, ['size' => 80]);
+                    // Get custom profile picture or fallback to WordPress avatar
+                    $avatar_url = get_user_meta($author_id, 'profile_picture', true);
+                    if (empty($avatar_url)) {
+                        $avatar_url = get_avatar_url($author_id, ['size' => 80]);
+                    }
                     $time_ago = human_time_diff(get_the_time('U'), current_time('timestamp')) . ' ago';
                     $comment_count = get_comments_number();
 
@@ -383,7 +387,11 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                 $comments = get_comments(['post_id' => $post_id, 'number' => 2, 'status' => 'approve']);
                                 if ($comments):
                                     foreach ($comments as $comment):
-                                        $c_avatar = get_avatar_url($comment->comment_author_email, ['size' => 40]);
+                                        // Get custom profile picture for commenter
+                                        $c_avatar = get_user_meta($comment->user_id, 'profile_picture', true);
+                                        if (empty($c_avatar)) {
+                                            $c_avatar = get_avatar_url($comment->comment_author_email, ['size' => 40]);
+                                        }
                                         ?>
                                         <div class="flex space-x-3">
                                             <img class="w-8 h-8 rounded-full object-cover shrink-0"
@@ -408,7 +416,13 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                             <?php if ($is_subscriber): ?>
                                 <div class="mt-6 pt-4 border-t border-border-light">
                                     <div class="flex items-start space-x-3">
-                                        <?php $current_user_avatar = get_avatar_url(get_current_user_id(), ['size' => 40]); ?>
+                                        <?php 
+                                        // Get custom profile picture for current user
+                                        $current_user_avatar = get_user_meta(get_current_user_id(), 'profile_picture', true);
+                                        if (empty($current_user_avatar)) {
+                                            $current_user_avatar = get_avatar_url(get_current_user_id(), ['size' => 40]);
+                                        }
+                                        ?>
                                         <img class="w-10 h-10 rounded-full object-cover shrink-0"
                                             src="<?php echo esc_url($current_user_avatar); ?>" alt="My Avatar">
                                         <form action="<?php echo esc_url(site_url('/wp-comments-post.php')); ?>" method="post"

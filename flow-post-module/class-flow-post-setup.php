@@ -376,11 +376,17 @@ class Flow_Post_Setup
         $comment_id = wp_insert_comment($comment_data);
 
         if ($comment_id) {
+            // Get custom profile picture or fallback to WordPress avatar
+            $avatar_url = get_user_meta($current_user->ID, 'profile_picture', true);
+            if (empty($avatar_url)) {
+                $avatar_url = get_avatar_url($current_user->ID, ['size' => 40]);
+            }
+
             // Return success with comment data
             wp_send_json_success(array(
                 'comment_id' => $comment_id,
                 'author' => $current_user->display_name,
-                'avatar' => get_avatar_url($current_user->ID, ['size' => 40]),
+                'avatar' => $avatar_url,
                 'comment_text' => esc_html($comment_text),
             ));
         } else {
