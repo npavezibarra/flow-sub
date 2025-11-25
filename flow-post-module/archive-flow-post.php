@@ -127,15 +127,33 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
             border-color: #1DA1F2;
             background-color: #E0F2FE;
         }
+
+        /* Sticky header */
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 1000;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Add padding to body to prevent content from going under fixed header */
+        body {
+            padding-top: 80px;
+            /* Adjust this value based on your header height */
+        }
     </style>
 </head>
 
 <body <?php body_class('font-sans min-h-screen'); ?>>
 
-<?php
-// Load the WordPress theme header template part
-echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
-?>
+    <?php
+    // Load the WordPress theme header template part
+    echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
+    ?>
 
     <div class="flex justify-center py-8">
         <div class="w-full max-w-xl space-y-8 px-4 sm:px-0">
