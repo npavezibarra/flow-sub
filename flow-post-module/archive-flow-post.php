@@ -264,14 +264,18 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                     $avatar_url = get_avatar_url($author_id, ['size' => 80]);
                     $time_ago = human_time_diff(get_the_time('U'), current_time('timestamp')) . ' ago';
                     $comment_count = get_comments_number();
+
+                    // Check if user is a subscriber (soft paywall logic)
+                    $current_user = wp_get_current_user();
+                    $is_subscriber = in_array('flow_subscriber', (array) $current_user->roles) || in_array('administrator', (array) $current_user->roles);
                     ?>
 
                     <!-- POST CARD -->
                     <div class="post-card bg-card-bg rounded-xl border border-border-light overflow-hidden">
 
-                        <!-- 1. Featured Media (TOP) -->
+                        <!-- 1. Featured Media (TOP) with Soft Paywall -->
                         <?php if ($is_video_post): ?>
-                            <div class="media-placeholder rounded-t-xl">
+                            <div class="media-placeholder rounded-t-xl relative">
                                 <?php
                                 // Use WordPress oEmbed
                                 $embed_code = wp_oembed_get($video_url, ['width' => 800]);
@@ -281,18 +285,44 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                     echo '<div class="absolute inset-0 flex items-center justify-center text-white">Invalid Video URL</div>';
                                 }
                                 ?>
+
+                                <?php if (!$is_subscriber): ?>
+                                    <!-- Paywall Overlay for Non-Subscribers -->
+                                    <div
+                                        class="absolute inset-0 z-10 flex flex-col justify-center items-center bg-black bg-opacity-70 backdrop-blur-sm p-4 text-center rounded-t-xl">
+                                        <h3 class="text-xl font-bold text-white mb-4">Contenido Exclusivo para Suscriptores</h3>
+                                        <p class="text-gray-300 mb-6">Únete a Flow para desbloquear este y todo el contenido.</p>
+                                        <a href="<?php echo home_url('/membership-signup/'); ?>"
+                                            class="bg-primary-blue text-white p-3 px-8 rounded-full font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity">
+                                            Suscríbete Ahora
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         <?php elseif ($is_photo_post):
                             $gallery_ids = array_slice($gallery_ids, 0, 4);
                             $grid_class = 'grid-cols-' . (count($gallery_ids) == 1 ? '1' : '2');
                             ?>
-                            <div class="grid <?php echo $grid_class; ?> gap-0.5 !p-0 !pb-0 !h-auto rounded-t-xl">
+                            <div class="grid <?php echo $grid_class; ?> gap-0.5 !p-0 !pb-0 !h-auto rounded-t-xl relative">
                                 <?php foreach ($gallery_ids as $attachment_id):
                                     $image_url = wp_get_attachment_image_url($attachment_id, 'large');
                                     if ($image_url): ?>
                                         <img class="w-full h-auto object-cover aspect-square" src="<?php echo esc_url($image_url); ?>"
                                             alt="Gallery Image">
                                     <?php endif; endforeach; ?>
+
+                                <?php if (!$is_subscriber): ?>
+                                    <!-- Paywall Overlay for Non-Subscribers -->
+                                    <div
+                                        class="absolute inset-0 z-10 flex flex-col justify-center items-center bg-black bg-opacity-70 backdrop-blur-sm p-4 text-center rounded-t-xl">
+                                        <h3 class="text-xl font-bold text-white mb-4">Contenido Exclusivo para Suscriptores</h3>
+                                        <p class="text-gray-300 mb-6">Únete a Flow para desbloquear este y todo el contenido.</p>
+                                        <a href="<?php echo home_url('/membership-signup/'); ?>"
+                                            class="bg-primary-blue text-white p-3 px-8 rounded-full font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity">
+                                            Suscríbete Ahora
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
 
@@ -374,23 +404,32 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                 <?php endif; ?>
                             </div>
 
-                            <!-- 6. Comment Input Bar (Visual Only - Links to Single Post) -->
-                            <div class="mt-6 pt-4 border-t border-border-light">
-                                <div class="flex items-start space-x-3">
-                                    <?php $current_user_avatar = get_avatar_url(get_current_user_id(), ['size' => 40]); ?>
-                                    <img class="w-10 h-10 rounded-full object-cover shrink-0"
-                                        src="<?php echo esc_url($current_user_avatar); ?>" alt="My Avatar">
-                                    <form action="<?php echo esc_url(site_url('/wp-comments-post.php')); ?>" method="post"
-                                        class="flex-grow flex space-x-2">
-                                        <input type="hidden" name="comment_post_ID" value="<?php echo $post_id; ?>" />
-                                        <input type="text" name="comment" placeholder="Únete a la discusión..."
-                                            class="comment-input flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-blue focus:border-primary-blue transition-shadow shadow-inner text-sm outline-none"
-                                            required>
-                                        <button type="submit"
-                                            class="bg-primary-blue text-white p-3 rounded-xl font-semibold hover:bg-opacity-90 transition-opacity">Publicar</button>
-                                    </form>
+                            <!-- 6. Comment Input Bar (Only for Subscribers) -->
+                            <?php if ($is_subscriber): ?>
+                                <div class="mt-6 pt-4 border-t border-border-light">
+                                    <div class="flex items-start space-x-3">
+                                        <?php $current_user_avatar = get_avatar_url(get_current_user_id(), ['size' => 40]); ?>
+                                        <img class="w-10 h-10 rounded-full object-cover shrink-0"
+                                            src="<?php echo esc_url($current_user_avatar); ?>" alt="My Avatar">
+                                        <form action="<?php echo esc_url(site_url('/wp-comments-post.php')); ?>" method="post"
+                                            class="flex-grow flex space-x-2">
+                                            <input type="hidden" name="comment_post_ID" value="<?php echo $post_id; ?>" />
+                                            <input type="text" name="comment" placeholder="Únete a la discusión..."
+                                                class="comment-input flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-blue focus:border-primary-blue transition-shadow shadow-inner text-sm outline-none"
+                                                required>
+                                            <button type="submit"
+                                                class="bg-primary-blue text-white p-3 rounded-xl font-semibold hover:bg-opacity-90 transition-opacity">Publicar</button>
+                                        </form>
+                                    </div>
                                 </div>
-                            </div>
+                            <?php else: ?>
+                                <!-- Non-subscribers see a message -->
+                                <div class="mt-6 pt-4 border-t border-border-light">
+                                    <p class="text-center text-gray-500 italic py-4">
+                                        <a href="<?php echo home_url('/membership-signup/'); ?>" class="text-primary-blue hover:underline font-semibold">Suscríbete</a> para unirte a la discusión
+                                    </p>
+                                </div>
+                            <?php endif; ?>
 
                         </div>
                     </div>

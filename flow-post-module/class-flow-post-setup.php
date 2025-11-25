@@ -77,24 +77,26 @@ class Flow_Post_Setup
 
     /**
      * Enforces the paywall: Checks user capability and redirects if unauthorized.
+     * Only redirects on single posts - archive uses soft paywall with conditional rendering.
      */
     public static function restrict_flow_post_access()
     {
-        // 1. Check if the current page is a single Flow Post OR the Flow Post Archive/Feed
-        if (is_singular('flow-post') || is_post_type_archive('flow-post')) {
+        // Only check for single Flow Posts (not the archive/feed)
+        if (is_singular('flow-post')) {
 
-            // 2. Check if the current user has the required capability: 'access_flow_feed'
+            // Check if the current user has the required capability: 'access_flow_feed'
             // This capability is granted to 'administrator' and 'flow_subscriber' roles.
-            // We use a custom capability to avoid conflicts with map_meta_cap and 'read_post'
             $can_read = current_user_can('access_flow_feed');
 
             if (!$can_read) {
-                // 3. If the user is not logged in or lacks the capability, redirect them.
+                // If the user is not logged in or lacks the capability, redirect them.
                 $redirect_url = home_url('/membership-signup/');
                 wp_safe_redirect($redirect_url);
                 exit; // Terminate script execution after redirection
             }
         }
+        // Archive page (is_post_type_archive('flow-post')) is now accessible to all
+        // Soft paywall logic is handled in the template itself
     }
 
     /**
