@@ -412,8 +412,10 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                         <img class="w-10 h-10 rounded-full object-cover shrink-0"
                                             src="<?php echo esc_url($current_user_avatar); ?>" alt="My Avatar">
                                         <form action="<?php echo esc_url(site_url('/wp-comments-post.php')); ?>" method="post"
-                                            class="flex-grow flex space-x-2">
+                                            class="flex-grow flex space-x-2 flow-comment-form">
                                             <input type="hidden" name="comment_post_ID" value="<?php echo $post_id; ?>" />
+                                            <input type="hidden" name="redirect_to"
+                                                value="<?php echo esc_url(get_post_type_archive_link('flow-post')); ?>" />
                                             <input type="text" name="comment" placeholder="Únete a la discusión..."
                                                 class="comment-input flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-blue focus:border-primary-blue transition-shadow shadow-inner text-sm outline-none"
                                                 required>
@@ -426,7 +428,9 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                                 <!-- Non-subscribers see a message -->
                                 <div class="mt-6 pt-4 border-t border-border-light">
                                     <p class="text-center text-gray-500 italic py-4">
-                                        <a href="<?php echo home_url('/membership-signup/'); ?>" class="text-primary-blue hover:underline font-semibold">Suscríbete</a> para unirte a la discusión
+                                        <a href="<?php echo home_url('/membership-signup/'); ?>"
+                                            class="text-primary-blue hover:underline font-semibold">Suscríbete</a> para unirte a la
+                                        discusión
                                     </p>
                                 </div>
                             <?php endif; ?>
@@ -510,6 +514,89 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                     });
                 });
             }
+
+            // AJAX Comment Submission
+            document.querySelectorAll('.flow-comment-form').forEach(form => {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const formData = new FormData(form);
+                    const commentInput = form.querySelector('input[name="comment"]');
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    const postId = formData.get('comment_post_ID');
+                    const commentText = formData.get('comment');
+                    
+                    // Disable form during submission
+                    submitButton.disabled = true;
+                    submitButton.textContent = 'Publicando...';
+                    
+                    try {
+                        const response = await fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                action: 'submit_flow_comment',
+                                comment_post_ID: postId,
+                                comment: commentText,
+                                nonce: '<?php echo wp_create_nonce('flow_comment_nonce'); ?>'
+                            })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            // Clear the input
+                            commentInput.value = '';
+                            
+                            // Find the discussion section for this post
+                            const discussionSection = form.closest('.post-card').querySelector('.space-y-4');
+                            const noCommentsMsg = discussionSection.querySelector('.italic');
+                            
+                            // Remove "no comments" message if it exists
+                            if (noCommentsMsg) {
+                                noCommentsMsg.remove();
+                            }
+                            
+                            // Add the new comment to the top
+                            const commentHTML = `
+                                <div class="flex space-x-3">
+                                    <img class="w-8 h-8 rounded-full object-cover shrink-0"
+                                        src="${result.data.avatar}" alt="Commenter Avatar">
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-900">
+                                            ${result.data.author} <span class="text-xs font-normal text-gray-500 ml-1">· hace unos segundos</span>
+                                        </p>
+                                        <p class="text-sm text-gray-700">${result.data.comment_text}</p>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            // Insert after the h3
+                            const h3 = discussionSection.querySelector('h3');
+                            h3.insertAdjacentHTML('afterend', commentHTML);
+                            
+                            // Update comment count
+                            const commentCountSpan = form.closest('.post-card').querySelector('.text-sm.text-gray-500.cursor-pointer');
+                            if (commentCountSpan) {
+                                const currentCount = parseInt(commentCountSpan.textContent.match(/\d+/)[0]);
+                                commentCountSpan.innerHTML = `${currentCount + 1} Comentarios`;
+                            }
+                            
+                        } else {
+                            alert('Error al publicar el comentario: ' + (result.data || 'Error desconocido'));
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('Error al publicar el comentario. Por favor, intenta de nuevo.');
+                    } finally {
+                        // Re-enable form
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Publicar';
+                    }
+                });
+            });
         });
     </script>
 

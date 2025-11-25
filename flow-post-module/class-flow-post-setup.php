@@ -22,6 +22,10 @@ class Flow_Post_Setup
         add_action('save_post_flow-post', [self::class, 'save_flow_post_meta']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_admin_scripts']);
 
+        // AJAX Hooks for Comment Submission
+        add_action('wp_ajax_submit_flow_comment', [self::class, 'ajax_submit_flow_comment']);
+        add_action('wp_ajax_nopriv_submit_flow_comment', [self::class, 'ajax_submit_flow_comment']);
+
         // Template Loading
         add_filter('template_include', [self::class, 'load_flow_post_template']);
     }
@@ -314,6 +318,73 @@ class Flow_Post_Setup
 
             // Save as a comma-separated string
             update_post_meta($post_id, 'flow_post_gallery_ids', implode(',', $final_ids));
+        }
+    }
+
+    /**
+     * AJAX handler for submitting comments without page refresh
+     */
+    public static function ajax_submit_flow_comment()
+    {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'flow_comment_nonce')) {
+            wp_send_json_error('Invalid nonce');
+            return;
+        }
+
+        // Check if user is logged in
+        if (!is_user_logged_in()) {
+            wp_send_json_error('You must be logged in to comment');
+            return;
+        }
+
+        // Get current user
+        $current_user = wp_get_current_user();
+
+        // Check if user has subscriber role
+        $is_subscriber = in_array('flow_subscriber', (array) $current_user->roles) ||
+            in_array('administrator', (array) $current_user->roles);
+
+        if (!$is_subscriber) {
+            wp_send_json_error('You must be a subscriber to comment');
+            return;
+        }
+
+        // Get and sanitize data
+        $post_id = isset($_POST['comment_post_ID']) ? intval($_POST['comment_post_ID']) : 0;
+        $comment_text = isset($_POST['comment']) ? sanitize_text_field($_POST['comment']) : '';
+
+        if (empty($comment_text) || $post_id === 0) {
+            wp_send_json_error('Invalid comment data');
+            return;
+        }
+
+        // Prepare comment data
+        $comment_data = array(
+            'comment_post_ID' => $post_id,
+            'comment_author' => $current_user->display_name,
+            'comment_author_email' => $current_user->user_email,
+            'comment_author_url' => $current_user->user_url,
+            'comment_content' => $comment_text,
+            'comment_type' => 'comment',
+            'comment_parent' => 0,
+            'user_id' => $current_user->ID,
+            'comment_approved' => 1, // Auto-approve
+        );
+
+        // Insert comment
+        $comment_id = wp_insert_comment($comment_data);
+
+        if ($comment_id) {
+            // Return success with comment data
+            wp_send_json_success(array(
+                'comment_id' => $comment_id,
+                'author' => $current_user->display_name,
+                'avatar' => get_avatar_url($current_user->ID, ['size' => 40]),
+                'comment_text' => esc_html($comment_text),
+            ));
+        } else {
+            wp_send_json_error('Failed to insert comment');
         }
     }
 }
