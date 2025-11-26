@@ -439,24 +439,26 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
     </div>
 
     <div class="flex justify-center pb-8 pt-0" style="margin-top: 0px;"> <!-- Added margin-top for sub-header -->
-        <div class="w-full max-w-xl space-y-8 px-4 sm:px-0">
+        <div id="main-content-container"
+            class="w-full max-w-[592px] min-[1080px]:max-w-[1280px] space-y-8 px-5 min-[1448px]:px-0">
             <!-- Removed H1 Title from here -->
 
             <?php if ($is_admin): ?>
                 <!-- Status Messages -->
                 <?php if ($flow_status === 'success'): ?>
                     <div id="success-message"
-                        class="bg-accent-green text-white p-4 rounded-lg shadow-md text-center font-semibold mb-6 transition-all duration-500">
+                        class="max-w-xl mx-auto bg-accent-green text-white p-4 rounded-lg shadow-md text-center font-semibold mb-6 transition-all duration-500">
                         ✅ ¡Publicación Flow creada exitosamente!
                     </div>
                 <?php elseif ($flow_status === 'post_error'): ?>
-                    <div class="bg-accent-red text-white p-4 rounded-lg shadow-md text-center font-semibold mb-6">
+                    <div
+                        class="max-w-xl mx-auto bg-accent-red text-white p-4 rounded-lg shadow-md text-center font-semibold mb-6">
                         ❌ Error: No se pudo guardar la publicación Flow.
                     </div>
                 <?php endif; ?>
 
                 <!-- Admin Post Creation Form -->
-                <div id="flow-post-creation-form" class="form-hidden mb-8">
+                <div id="flow-post-creation-form" class="form-hidden mb-8 max-w-xl mx-auto">
                     <div class="post-card bg-card-bg rounded-xl border border-black overflow-hidden p-6 md:p-8">
                         <h2 class="text-xl font-bold text-black mb-6 border-b border-border-light pb-4">Nueva
                             Publicación Flow
@@ -520,7 +522,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                 </div>
             <?php endif; ?>
 
-            <div id="flow-posts-container">
+            <div id="flow-posts-container" class="grid grid-cols-1 min-[1080px]:grid-cols-2 gap-8">
                 <?php if (have_posts()): ?>
                     <?php while (have_posts()):
                         the_post();
@@ -565,7 +567,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                         include(plugin_dir_path(__FILE__) . 'template-parts/post-card.php');
                         ?>
 
-                        <div class="h-8"></div> <!-- Spacer -->
+
 
                     <?php endwhile; ?>
 
@@ -584,7 +586,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
     <script>
         // Simple function for the "alert" box instead of window.alert                   ()
         function alert(message) {
-            const container = document.querySelector('.w-full.max-w-xl');
+            const container = document.getElementById('main-content-container');
             let alertBox = document.getElementById('custom-alert');
 
             if (!alertBox) {
