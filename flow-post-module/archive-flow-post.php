@@ -270,8 +270,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
             background-color: #E0F2FE;
         }
 
-        /* Sticky header */
-        header {
+        /* Sticky header wrapper */
+        #global-header-wrapper {
             position: fixed;
             top: 0;
             left: 0;
@@ -282,47 +282,95 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
+        /* Reset header positioning so it stacks */
+        header {
+            position: relative !important;
+            width: 100%;
+            z-index: 1001;
+        }
+
         /* Add padding to body to prevent content from going under fixed header */
         body {
             padding-top: 144px;
             /* Adjust this value based on your header height */
+        }
+
+        /* Responsive styles for sub-header */
+        @media (max-width: 1490px) {
+            #sub-header>div {
+                padding-left: 100px;
+                padding-right: 100px;
+            }
+        }
+
+        @media (max-width: 1080px) {
+            #sub-header>div {
+                justify-content: center;
+            }
+
+            header>div>div {
+                justify-content: center;
+            }
+        }
+
+        /* Force Hamburger Menu at 840px */
+        @media (max-width: 840px) {
+            .wp-block-navigation__responsive-container-open {
+                display: flex !important;
+            }
+
+            .wp-block-navigation__responsive-container:not(.is-menu-open) {
+                display: none !important;
+            }
+
+            .wp-block-navigation__responsive-container.is-menu-open {
+                display: block !important;
+                width: 100%;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                background-color: white;
+                padding: 20px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
         }
     </style>
 </head>
 
 <body <?php body_class('font-sans min-h-screen'); ?>>
 
-    <?php
-    // Load the WordPress theme header template part
-    echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
-    ?>
+    <div id="global-header-wrapper">
+        <?php
+        // Load the WordPress theme header template part
+        echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
+        ?>
 
-    <!-- Sub-Header Bar -->
-    <div id="sub-header"
-        class="fixed top-[80px] left-0 right-0 bg-white border-b-2 border-black z-40 shadow-sm h-16 mt-5">
-        <div class="max-w-[1280px] mx-auto px-4 h-full flex items-center gap-4">
-            <!-- Filter Button -->
-            <button id="filter-button"
-                class="bg-black border-2 border-black p-2 rounded hover:bg-gray-800 transition-all duration-300 flex-shrink-0">
-                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                </svg>
-            </button>
-
-            <?php if ($is_admin): ?>
-                <!-- Create Post Button -->
-                <button id="toggle-post-form"
+        <!-- Sub-Header Bar -->
+        <div id="sub-header" class="w-full bg-white border-b border-black z-40 shadow-sm h-16">
+            <div class="max-w-[1280px] mx-auto h-full flex items-center gap-4">
+                <!-- Filter Button -->
+                <button id="filter-button"
                     class="bg-black border-2 border-black p-2 rounded hover:bg-gray-800 transition-all duration-300 flex-shrink-0">
                     <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                     </svg>
                 </button>
-            <?php endif; ?>
 
-            <!-- Page Title -->
-            <h1 class="text-xl font-bold text-gray-900 ml-2">Feed Miembros</h1>
+                <?php if ($is_admin): ?>
+                    <!-- Create Post Button -->
+                    <button id="toggle-post-form"
+                        class="bg-black border-2 border-black p-2 rounded hover:bg-gray-800 transition-all duration-300 flex-shrink-0">
+                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                    </button>
+                <?php endif; ?>
+
+                <!-- Page Title -->
+                <h1 class="text-xl font-bold text-gray-900 ml-2">Feed Miembros</h1>
+            </div>
         </div>
     </div>
 
@@ -390,7 +438,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
         style="top: 164px;">
     </div>
 
-    <div class="flex justify-center py-8" style="margin-top: 84px;"> <!-- Added margin-top for sub-header -->
+    <div class="flex justify-center pb-8 pt-0" style="margin-top: 0px;"> <!-- Added margin-top for sub-header -->
         <div class="w-full max-w-xl space-y-8 px-4 sm:px-0">
             <!-- Removed H1 Title from here -->
 
@@ -436,7 +484,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                             </div>
 
                             <div>
-                                <label for="video-link" class="block text-sm font-medium text-gray-700 mb-1">Enlace de Video
+                                <label for="video-link" class="block text-sm font-medium text-gray-700 mb-1">Enlace de
+                                    Video
                                     de
                                     YouTube (Opcional)</label>
                                 <input type="url" id="video-link" name="video-link" placeholder="https://youtu.be/..."
@@ -444,7 +493,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                             </div>
 
                             <div>
-                                <label for="photo-upload" class="block text-sm font-medium text-gray-700 mb-2">Subir Fotos
+                                <label for="photo-upload" class="block text-sm font-medium text-gray-700 mb-2">Subir
+                                    Fotos
                                     (Opcional)</label>
                                 <div id="photo-upload-area"
                                     class="flex flex-col justify-center items-center h-32 border-2 border-dashed border-border-light rounded-lg bg-light-gray transition-colors cursor-pointer p-4 hover:bg-gray-100">
