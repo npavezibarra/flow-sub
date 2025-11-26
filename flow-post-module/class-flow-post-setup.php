@@ -26,6 +26,10 @@ class Flow_Post_Setup
         add_action('wp_ajax_submit_flow_comment', [self::class, 'ajax_submit_flow_comment']);
         add_action('wp_ajax_nopriv_submit_flow_comment', [self::class, 'ajax_submit_flow_comment']);
 
+        // AJAX Hooks for Post Filtering
+        add_action('wp_ajax_flow_filter_posts', [self::class, 'ajax_filter_posts']);
+        add_action('wp_ajax_nopriv_flow_filter_posts', [self::class, 'ajax_filter_posts']);
+
         // Template Loading
         add_filter('template_include', [self::class, 'load_flow_post_template']);
     }
@@ -112,6 +116,10 @@ class Flow_Post_Setup
             'name' => _x('Flow Posts', 'Post Type General Name', 'flow-sub'),
             'singular_name' => _x('Flow Post', 'Post Type Singular Name', 'flow-sub'),
             'menu_name' => __('Flow Posts', 'flow-sub'),
+            'name_admin_bar' => __('Flow Post', 'flow-sub'),
+            'archives' => __('Flow Post Archives', 'flow-sub'),
+            'attributes' => __('Flow Post Attributes', 'flow-sub'),
+            'parent_item_colon' => __('Parent Flow Post:', 'flow-sub'),
             'all_items' => __('All Flow Posts', 'flow-sub'),
             'add_new_item' => __('Add New Flow Post', 'flow-sub'),
             'add_new' => __('Add New', 'flow-sub'),
@@ -120,39 +128,48 @@ class Flow_Post_Setup
             'update_item' => __('Update Flow Post', 'flow-sub'),
             'view_item' => __('View Flow Post', 'flow-sub'),
             'view_items' => __('View Flow Posts', 'flow-sub'),
+            'search_items' => __('Search Flow Post', 'flow-sub'),
+            'not_found' => __('Not found', 'flow-sub'),
+            'not_found_in_trash' => __('Not found in Trash', 'flow-sub'),
+            'featured_image' => __('Featured Image', 'flow-sub'),
+            'set_featured_image' => __('Set featured image', 'flow-sub'),
+            'remove_featured_image' => __('Remove featured image', 'flow-sub'),
+            'use_featured_image' => __('Use as featured image', 'flow-sub'),
+            'insert_into_item' => __('Insert into flow post', 'flow-sub'),
+            'uploaded_to_this_item' => __('Uploaded to this flow post', 'flow-sub'),
+            'items_list' => __('Flow Posts list', 'flow-sub'),
+            'items_list_navigation' => __('Flow Posts list navigation', 'flow-sub'),
+            'filter_items_list' => __('Filter flow posts list', 'flow-sub'),
         ];
-
-        // Define the custom capabilities based on the singular post type name.
-        $capabilities = [
-            'edit_post' => 'edit_flow_post',
-            'read_post' => 'read_flow_post',
-            'delete_post' => 'delete_flow_post',
-            'edit_posts' => 'edit_flow_posts',
-            'edit_others_posts' => 'edit_others_flow_posts',
-            'publish_posts' => 'publish_flow_posts',
-            'read_private_posts' => 'read_private_flow_posts',
-            'create_posts' => 'edit_flow_posts', // Users who can edit can create
-        ];
-
         $args = [
             'label' => __('Flow Post', 'flow-sub'),
-            'description' => __('Content restricted to Flow subscribers.', 'flow-sub'),
+            'description' => __('Post Type Description', 'flow-sub'),
             'labels' => $labels,
-            'supports' => ['title', 'editor', 'author', 'comments'],
+            'supports' => ['title', 'editor', 'thumbnail', 'comments', 'author'],
+            'taxonomies' => [],
             'hierarchical' => false,
-            'public' => true, // Publicly queryable to allow URL structure
-            'show_ui' => true, // Show in Admin
-            'show_in_menu' => true, // Show in Admin Menu
+            'public' => true,
+            'show_ui' => true,
+            'show_in_menu' => true,
             'menu_position' => 5,
             'show_in_admin_bar' => true,
             'show_in_nav_menus' => true,
             'can_export' => true,
-            'has_archive' => 'flow-feed', // Custom archive slug for the feed page
-            'exclude_from_search' => true, // Exclude from normal WP searches
+            'has_archive' => true,
+            'exclude_from_search' => false,
             'publicly_queryable' => true,
             'capability_type' => 'flow_post', // The base capability type (singular)
-            'capabilities' => $capabilities,
-            'map_meta_cap' => true, // Crucial for mapping meta capabilities like 'edit_post'
+            'capabilities' => [
+                'edit_post' => 'edit_flow_post',
+                'read_post' => 'read_flow_post',
+                'delete_post' => 'delete_flow_post',
+                'edit_posts' => 'edit_flow_posts',
+                'edit_others_posts' => 'edit_others_flow_posts',
+                'publish_posts' => 'publish_flow_posts',
+                'read_private_posts' => 'read_private_flow_posts',
+                'create_posts' => 'edit_flow_posts', // Users who can edit can create
+            ],
+            'map_meta_cap' => true,
             'rewrite' => ['slug' => 'flow-post'],
         ];
         register_post_type('flow-post', $args);
@@ -392,6 +409,148 @@ class Flow_Post_Setup
         } else {
             wp_send_json_error('Failed to insert comment');
         }
+    }
+
+    /**
+     * AJAX handler for filtering Flow Posts
+     */
+    public static function ajax_filter_posts()
+    {
+        $post_types = isset($_POST['post_types']) ? (array) $_POST['post_types'] : [];
+        $date_from = isset($_POST['date_from']) ? sanitize_text_field($_POST['date_from']) : '';
+        $date_to = isset($_POST['date_to']) ? sanitize_text_field($_POST['date_to']) : '';
+
+        // Build query args - get all posts first
+        $args = [
+            'post_type' => 'flow-post',
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+            'orderby' => 'date',
+            'order' => 'DESC'
+        ];
+
+        // Add date query if specified
+        if (!empty($date_from) || !empty($date_to)) {
+            $date_query = [];
+
+            if (!empty($date_from)) {
+                $date_query['after'] = $date_from;
+            }
+
+            if (!empty($date_to)) {
+                $date_query['before'] = $date_to;
+            }
+
+            $date_query['inclusive'] = true;
+            $args['date_query'] = [$date_query];
+        }
+
+        $query = new WP_Query($args);
+
+        ob_start();
+
+        $found_posts = false;
+
+        if ($query->have_posts()) {
+            while ($query->have_posts()) {
+                $query->the_post();
+
+                // Get post data
+                $post_id = get_the_ID();
+                $video_url = get_post_meta($post_id, 'flow_post_video_url', true);
+                $gallery_ids = get_post_meta($post_id, 'flow_post_gallery_ids', true);
+
+                // Determine post type
+                $is_video_post = !empty($video_url);
+                $is_photo_post = !empty($gallery_ids) && !$is_video_post;
+                $is_text_post = !$is_video_post && !$is_photo_post;
+
+                // Filter by post type if specified
+                if (!empty($post_types)) {
+                    $matches_filter = false;
+
+                    if (in_array('video', $post_types) && $is_video_post) {
+                        $matches_filter = true;
+                    }
+                    if (in_array('photo', $post_types) && $is_photo_post) {
+                        $matches_filter = true;
+                    }
+                    if (in_array('text', $post_types) && $is_text_post) {
+                        $matches_filter = true;
+                    }
+
+                    // Skip this post if it doesn't match the filter
+                    if (!$matches_filter) {
+                        continue;
+                    }
+                }
+
+                // Filter by date if specified
+                if (!empty($date_from)) {
+                    $post_date = get_the_date('Y-m-d', $post_id);
+                    if ($post_date < $date_from) {
+                        continue;
+                    }
+                }
+                if (!empty($date_to)) {
+                    $post_date = get_the_date('Y-m-d', $post_id);
+                    if ($post_date > $date_to) {
+                        continue;
+                    }
+                }
+
+                $found_posts = true;
+
+                if (!empty($gallery_ids) && is_string($gallery_ids)) {
+                    $gallery_ids = array_map('intval', explode(',', $gallery_ids));
+                } elseif (empty($gallery_ids)) {
+                    $gallery_ids = [];
+                }
+
+                // Build post type attribute
+                $post_type_attr = [];
+                if ($is_video_post)
+                    $post_type_attr[] = 'video';
+                if ($is_photo_post)
+                    $post_type_attr[] = 'photo';
+                if ($is_text_post)
+                    $post_type_attr[] = 'text';
+                $post_type_attr = implode(',', $post_type_attr);
+
+                $post_date = get_the_date('Y-m-d');
+
+                // Get author info
+                $author_id = get_the_author_meta('ID');
+                $author_name = get_the_author_meta('display_name');
+                $avatar_custom = get_user_meta($author_id, 'profile_picture', true);
+                if (empty($avatar_custom)) {
+                    $avatar_url = get_avatar_url($author_id, ['size' => 40]);
+                } else {
+                    $avatar_url = $avatar_custom;
+                }
+                $time_ago = human_time_diff(get_the_time('U'), current_time('timestamp')) . ' ago';
+                $comment_count = get_comments_number();
+
+                // Check if user is a subscriber
+                $current_user = wp_get_current_user();
+                $is_subscriber = in_array('flow_subscriber', (array) $current_user->roles) || in_array('administrator', (array) $current_user->roles);
+
+                // Render post card using template
+                include(plugin_dir_path(__FILE__) . 'template-parts/post-card.php');
+            }
+
+            if (!$found_posts) {
+                echo '<div class="text-center py-12 text-gray-500">No se encontraron publicaciones que coincidan con los filtros.</div>';
+            }
+        } else {
+            echo '<div class="text-center py-12 text-gray-500">No se encontraron publicaciones que coincidan con los filtros.</div>';
+        }
+
+        wp_reset_postdata();
+        $content = ob_get_clean();
+
+        wp_send_json_success(['html' => $content]);
+        wp_die();
     }
 }
 Flow_Post_Setup::init();

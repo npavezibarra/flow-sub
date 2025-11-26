@@ -7,6 +7,148 @@
 // Check if the current user is an administrator (can manage options)
 $is_admin = current_user_can('manage_options');
 
+// AJAX Handler for Filter Posts
+add_action('wp_ajax_flow_filter_posts', 'flow_filter_posts_ajax');
+add_action('wp_ajax_nopriv_flow_filter_posts', 'flow_filter_posts_ajax');
+
+function flow_filter_posts_ajax()
+{
+    $post_types = isset($_POST['post_types']) ? (array) $_POST['post_types'] : [];
+    $date_from = isset($_POST['date_from']) ? sanitize_text_field($_POST['date_from']) : '';
+    $date_to = isset($_POST['date_to']) ? sanitize_text_field($_POST['date_to']) : '';
+
+    // Build query args
+    $args = [
+        'post_type' => 'flow-post',
+        'posts_per_page' => -1,
+        'post_status' => 'publish',
+        'orderby' => 'date',
+        'order' => 'DESC'
+    ];
+
+    // Add meta query for post types if specified
+    if (!empty($post_types)) {
+        $meta_query = ['relation' => 'OR'];
+
+        if (in_array('video', $post_types)) {
+            $meta_query[] = [
+                'key' => 'flow_post_video_url',
+                'compare' => '!=',
+                'value' => ''
+            ];
+        }
+
+        if (in_array('photo', $post_types)) {
+            $meta_query[] = [
+                'key' => 'flow_post_gallery_ids',
+                'compare' => '!=',
+                'value' => ''
+            ];
+        }
+
+        if (in_array('text', $post_types)) {
+            $meta_query[] = [
+                'relation' => 'AND',
+                [
+                    'relation' => 'OR',
+                    [
+                        'key' => 'flow_post_video_url',
+                        'compare' => 'NOT EXISTS'
+                    ],
+                    [
+                        'key' => 'flow_post_video_url',
+                        'value' => '',
+                        'compare' => '='
+                    ]
+                ],
+                [
+                    'relation' => 'OR',
+                    [
+                        'key' => 'flow_post_gallery_ids',
+                        'compare' => 'NOT EXISTS'
+                    ],
+                    [
+                        'key' => 'flow_post_gallery_ids',
+                        'value' => '',
+                        'compare' => '='
+                    ]
+                ]
+            ];
+        }
+
+        $args['meta_query'] = $meta_query;
+    }
+
+    // Add date query if specified
+    if ($date_from || $date_to) {
+        $date_query = [];
+        if ($date_from) {
+            $date_query['after'] = $date_from;
+        }
+        if ($date_to) {
+            $date_query['before'] = $date_to;
+            $date_query['inclusive'] = true;
+        }
+        $args['date_query'] = [$date_query];
+    }
+
+    $query = new WP_Query($args);
+
+    ob_start();
+
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+
+            // Get post data (same as main loop)
+            $post_id = get_the_ID();
+            $video_url = get_post_meta($post_id, 'flow_post_video_url', true);
+            $gallery_ids_string = get_post_meta($post_id, 'flow_post_gallery_ids', true);
+            $gallery_ids = array_filter(explode(',', $gallery_ids_string));
+
+            // Determine Post Type
+            $is_video_post = !empty($video_url);
+            $is_photo_post = !empty($gallery_ids);
+
+            // Build post type array for filtering
+            $post_types_attr = [];
+            if ($is_video_post)
+                $post_types_attr[] = 'video';
+            if ($is_photo_post)
+                $post_types_attr[] = 'photo';
+            if (empty($post_types_attr))
+                $post_types_attr[] = 'text';
+            $post_type_attr = implode(',', $post_types_attr);
+            $post_date = get_the_date('Y-m-d');
+
+            // Author Info
+            $author_id = get_the_author_meta('ID');
+            $author_name = get_the_author_meta('display_name');
+            $avatar_url = get_user_meta($author_id, 'profile_picture', true);
+            if (empty($avatar_url)) {
+                $avatar_url = get_avatar_url($author_id, ['size' => 80]);
+            }
+            $time_ago = human_time_diff(get_the_time('U'), current_time('timestamp')) . ' ago';
+            $comment_count = get_comments_number();
+
+            // Check if user is a subscriber
+            $current_user = wp_get_current_user();
+            $is_subscriber = in_array('flow_subscriber', (array) $current_user->roles) || in_array('administrator', (array) $current_user->roles);
+
+            // Render post card using template
+            include(plugin_dir_path(__FILE__) . 'template-parts/post-card.php');
+        }
+    } else {
+        echo '<div class="text-center py-12 text-gray-500">No se encontraron publicaciones que coincidan con los filtros.</div>';
+    }
+
+    wp_reset_postdata();
+    $html = ob_get_clean();
+
+    wp_send_json_success(['html' => $html]);
+    wp_die(); // Required to terminate AJAX request properly
+}
+
 // Get the submission status for displaying messages (from the redirect)
 $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) : '';
 
@@ -142,7 +284,7 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
 
         /* Add padding to body to prevent content from going under fixed header */
         body {
-            padding-top: 80px;
+            padding-top: 144px;
             /* Adjust this value based on your header height */
         }
     </style>
@@ -155,19 +297,40 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
     echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
     ?>
 
-    <!-- Filter Button (Fixed on Left, moves with panel) -->
-    <button id="filter-button"
-        class="fixed left-4 top-32 z-50 bg-black border-2 border-black p-3 rounded-lg shadow-lg hover:bg-gray-800 transition-all duration-300">
-        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-        </svg>
-    </button>
+    <!-- Sub-Header Bar -->
+    <div id="sub-header"
+        class="fixed top-[80px] left-0 right-0 bg-white border-b-2 border-black z-40 shadow-sm h-16 mt-5">
+        <div class="max-w-[1280px] mx-auto px-4 h-full flex items-center gap-4">
+            <!-- Filter Button -->
+            <button id="filter-button"
+                class="bg-black border-2 border-black p-2 rounded hover:bg-gray-800 transition-all duration-300 flex-shrink-0">
+                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+            </button>
+
+            <?php if ($is_admin): ?>
+                <!-- Create Post Button -->
+                <button id="toggle-post-form"
+                    class="bg-black border-2 border-black p-2 rounded hover:bg-gray-800 transition-all duration-300 flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                </button>
+            <?php endif; ?>
+
+            <!-- Page Title -->
+            <h1 class="text-xl font-bold text-gray-900 ml-2">Feed Miembros</h1>
+        </div>
+    </div>
 
     <!-- Filter Panel (Sliding from Left) -->
+    <!-- Adjusted top to 164px (80px header + 20px margin + 64px sub-header) -->
     <div id="filter-panel"
-        class="fixed left-0 top-20 h-[calc(100vh-5rem)] w-80 bg-white shadow-2xl z-40 transform -translate-x-full transition-transform duration-300 ease-in-out">
-        <div class="h-full overflow-y-auto" style="padding: 3rem 1.5rem;">
+        class="fixed left-0 top-[164px] h-[calc(100vh-10.25rem)] w-80 bg-white shadow-2xl z-30 transform -translate-x-full transition-transform duration-300 ease-in-out border-r border-gray-200">
+        <div class="h-full overflow-y-auto" style="padding: 2rem 1.5rem;">
             <!-- Panel Header -->
             <div class="mb-6">
                 <h2 class="text-2xl font-bold text-gray-900 text-left">Filtros</h2>
@@ -178,15 +341,18 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Tipo de post</h3>
                 <div class="space-y-3">
                     <label class="flex items-center cursor-pointer">
-                        <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
+                        <input type="checkbox" id="filter-video"
+                            class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
                         <span class="ml-3 text-gray-700">Video</span>
                     </label>
                     <label class="flex items-center cursor-pointer">
-                        <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
+                        <input type="checkbox" id="filter-photo"
+                            class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
                         <span class="ml-3 text-gray-700">Foto</span>
                     </label>
                     <label class="flex items-center cursor-pointer">
-                        <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
+                        <input type="checkbox" id="filter-text"
+                            class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
                         <span class="ml-3 text-gray-700">Texto</span>
                     </label>
                 </div>
@@ -198,12 +364,12 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                 <div class="space-y-3">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Desde</label>
-                        <input type="date"
+                        <input type="date" id="filter-date-from"
                             class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
-                        <input type="date"
+                        <input type="date" id="filter-date-to"
                             class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black">
                     </div>
                 </div>
@@ -211,32 +377,22 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
 
             <!-- Apply/Clear Buttons -->
             <div class="flex gap-3 mt-6">
-                <button
+                <button id="apply-filters"
                     class="flex-1 bg-black text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors">Aplicar</button>
-                <button
+                <button id="clear-filters"
                     class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-300 transition-colors">Limpiar</button>
             </div>
         </div>
     </div>
 
     <!-- Overlay for filter panel -->
-    <div id="filter-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden transition-opacity duration-300">
+    <div id="filter-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden transition-opacity duration-300"
+        style="top: 164px;">
     </div>
 
-    <?php if ($is_admin): ?>
-        <!-- Create Post Button (Fixed on Left, below filter, moves with panel) -->
-        <button id="toggle-post-form"
-            class="fixed left-4 top-48 z-50 bg-black border-2 border-black p-3 rounded-lg shadow-lg hover:bg-gray-800 transition-all duration-300">
-            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-        </button>
-    <?php endif; ?>
-
-    <div class="flex justify-center py-8">
+    <div class="flex justify-center py-8" style="margin-top: 84px;"> <!-- Added margin-top for sub-header -->
         <div class="w-full max-w-xl space-y-8 px-4 sm:px-0">
-            <h1 class="text-3xl font-extrabold text-gray-900 mb-8 text-center">Feed de Contenido Flow</h1>
+            <!-- Removed H1 Title from here -->
 
             <?php if ($is_admin): ?>
                 <!-- Status Messages -->
@@ -314,231 +470,69 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                 </div>
             <?php endif; ?>
 
-            <?php if (have_posts()): ?>
-                <?php while (have_posts()):
-                    the_post();
-                    $post_id = get_the_ID();
-                    $video_url = get_post_meta($post_id, 'flow_post_video_url', true);
-                    $gallery_ids_string = get_post_meta($post_id, 'flow_post_gallery_ids', true);
-                    $gallery_ids = array_filter(explode(',', $gallery_ids_string));
+            <div id="flow-posts-container">
+                <?php if (have_posts()): ?>
+                    <?php while (have_posts()):
+                        the_post();
+                        $post_id = get_the_ID();
+                        $video_url = get_post_meta($post_id, 'flow_post_video_url', true);
+                        $gallery_ids_string = get_post_meta($post_id, 'flow_post_gallery_ids', true);
+                        $gallery_ids = array_filter(explode(',', $gallery_ids_string));
 
-                    // Determine Post Type
-                    $is_video_post = !empty($video_url);
-                    $is_photo_post = !empty($gallery_ids);
+                        // Determine Post Type
+                        $is_video_post = !empty($video_url);
+                        $is_photo_post = !empty($gallery_ids);
 
-                    // Author Info
-                    $author_id = get_the_author_meta('ID');
-                    $author_name = get_the_author_meta('display_name');
-                    // Get custom profile picture or fallback to WordPress avatar
-                    $avatar_url = get_user_meta($author_id, 'profile_picture', true);
-                    if (empty($avatar_url)) {
-                        $avatar_url = get_avatar_url($author_id, ['size' => 80]);
-                    }
-                    $time_ago = human_time_diff(get_the_time('U'), current_time('timestamp')) . ' ago';
-                    $comment_count = get_comments_number();
+                        // Build post type array for filtering
+                        $post_types = [];
+                        if ($is_video_post)
+                            $post_types[] = 'video';
+                        if ($is_photo_post)
+                            $post_types[] = 'photo';
+                        if (empty($post_types))
+                            $post_types[] = 'text';
+                        $post_type_attr = implode(',', $post_types);
+                        $post_date = get_the_date('Y-m-d');
 
-                    // Check if user is a subscriber (soft paywall logic)
-                    $current_user = wp_get_current_user();
-                    $is_subscriber = in_array('flow_subscriber', (array) $current_user->roles) || in_array('administrator', (array) $current_user->roles);
-                    ?>
+                        // Author Info
+                        $author_id = get_the_author_meta('ID');
+                        $author_name = get_the_author_meta('display_name');
+                        // Get custom profile picture or fallback to WordPress avatar
+                        $avatar_url = get_user_meta($author_id, 'profile_picture', true);
+                        if (empty($avatar_url)) {
+                            $avatar_url = get_avatar_url($author_id, ['size' => 80]);
+                        }
+                        $time_ago = human_time_diff(get_the_time('U'), current_time('timestamp')) . ' ago';
+                        $comment_count = get_comments_number();
 
-                    <!-- POST CARD -->
-                    <div class="post-card bg-card-bg rounded-xl border border-border-light overflow-hidden">
+                        // Check if user is a subscriber (soft paywall logic)
+                        $current_user = wp_get_current_user();
+                        $is_subscriber = in_array('flow_subscriber', (array) $current_user->roles) || in_array('administrator', (array) $current_user->roles);
+                        ?>
 
-                        <!-- 1. Featured Media (TOP) with Soft Paywall -->
-                        <?php if ($is_video_post): ?>
-                            <div class="media-placeholder rounded-t-xl relative">
-                                <?php
-                                // Use WordPress oEmbed
-                                $embed_code = wp_oembed_get($video_url, ['width' => 800]);
-                                if ($embed_code) {
-                                    echo $embed_code;
-                                } else {
-                                    echo '<div class="absolute inset-0 flex items-center justify-center text-white">Invalid Video URL</div>';
-                                }
-                                ?>
+                        <?php
+                        // Include post card template
+                        include(plugin_dir_path(__FILE__) . 'template-parts/post-card.php');
+                        ?>
 
-                                <?php if (!$is_subscriber): ?>
-                                    <!-- Paywall Overlay for Non-Subscribers -->
-                                    <div
-                                        class="absolute inset-0 z-10 flex flex-col justify-center items-center bg-black bg-opacity-70 backdrop-blur-sm p-4 text-center rounded-t-xl">
-                                        <h3 class="text-xl font-bold text-white mb-4">Contenido Exclusivo para Suscriptores</h3>
-                                        <p class="text-gray-300 mb-6">Únete a Flow para desbloquear este y todo el contenido.</p>
-                                        <a href="<?php echo home_url('/membership-signup/'); ?>"
-                                            class="bg-primary-blue text-white p-3 px-8 rounded-full font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity">
-                                            Suscríbete Ahora
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        <?php elseif ($is_photo_post):
-                            $gallery_ids = array_slice($gallery_ids, 0, 4);
-                            $grid_class = 'grid-cols-' . (count($gallery_ids) == 1 ? '1' : '2');
-                            ?>
-                            <div class="grid <?php echo $grid_class; ?> gap-0.5 !p-0 !pb-0 !h-auto rounded-t-xl relative">
-                                <?php foreach ($gallery_ids as $attachment_id):
-                                    $image_url = wp_get_attachment_image_url($attachment_id, 'large');
-                                    if ($image_url): ?>
-                                        <img class="w-full h-auto object-cover aspect-square" src="<?php echo esc_url($image_url); ?>"
-                                            alt="Gallery Image">
-                                    <?php endif; endforeach; ?>
+                        <div class="h-8"></div> <!-- Spacer -->
 
-                                <?php if (!$is_subscriber): ?>
-                                    <!-- Paywall Overlay for Non-Subscribers -->
-                                    <div
-                                        class="absolute inset-0 z-10 flex flex-col justify-center items-center bg-black bg-opacity-70 backdrop-blur-sm p-4 text-center rounded-t-xl">
-                                        <h3 class="text-xl font-bold text-white mb-4">Contenido Exclusivo para Suscriptores</h3>
-                                        <p class="text-gray-300 mb-6">Únete a Flow para desbloquear este y todo el contenido.</p>
-                                        <a href="<?php echo home_url('/membership-signup/'); ?>"
-                                            class="bg-primary-blue text-white p-3 px-8 rounded-full font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity">
-                                            Suscríbete Ahora
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
+                    <?php endwhile; ?>
 
-                        <!-- Inner Content Area -->
-                        <div class="p-4 md:p-6">
-
-                            <!-- 2. Post Title -->
-                            <h2 class="text-2xl font-extrabold text-gray-900 mb-2 text-left">
-                                <?php the_title(); ?>
-                            </h2>
-
-                            <!-- Author & Date -->
-                            <div class="flex items-center text-sm text-gray-500 mb-4">
-                                <img class="w-7 h-7 rounded-full object-cover mr-2" src="<?php echo esc_url($avatar_url); ?>"
-                                    alt="Avatar">
-                                <p class="font-semibold text-gray-800 mr-1"><?php echo esc_html($author_name); ?></p>
-                                <span>· <?php echo $time_ago; ?></span>
-                            </div>
-
-                            <!-- 3. Post Description -->
-                            <div class="text-gray-700 leading-relaxed mb-6">
-                                <?php the_content(); ?>
-                            </div>
-
-                            <!-- 4. Interaction Status & Like Button -->
-                            <div class="flex justify-between items-center text-gray-500 mb-6 pb-3 border-b border-border-light">
-                                <div class="flex items-center space-x-4">
-                                    <!-- Like Status/Button (Visual Only for now) -->
-                                    <button class="flex items-center text-gray-500 hover:text-accent-red transition-colors">
-                                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd"
-                                                d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
-                                                clip-rule="evenodd"></path>
-                                        </svg>
-                                        <span
-                                            class="text-sm font-medium text-gray-700 ml-1"><?php echo rand(10, 50); // Fake random likes ?></span>
-                                    </button>
-                                    <!-- Comment Count -->
-                                    <span
-                                        class="text-sm text-gray-500 cursor-pointer hover:text-primary-blue"><?php echo $comment_count; ?>
-                                        Comentarios</span>
-                                </div>
-                                <!-- Share Icon -->
-                                <button class="text-gray-400 hover:text-gray-700 transition-colors">
-                                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                        <path
-                                            d="M15 8a3 3 0 10-2.977-2.977l-4.152 2.152A2.948 2.948 0 006 8c-1.657 0-3 1.343-3 3s1.343 3 3 3c.83 0 1.58-.33 2.138-.87l4.154 2.156a3 3 0 10.237-4.708l-4.157-2.158A3.012 3.012 0 0015 8z">
-                                        </path>
-                                    </svg>
-                                </button>
-                            </div>
-
-                            <!-- 5. Comments Section (Preview) -->
-                            <div class="space-y-4">
-                                <h3 class="text-lg font-bold text-gray-900">Discusión</h3>
-
-                                <?php
-                                $comments = get_comments(['post_id' => $post_id, 'number' => 2, 'status' => 'approve']);
-                                if ($comments):
-                                    foreach ($comments as $comment):
-                                        // Get custom profile picture for commenter
-                                        $c_avatar = get_user_meta($comment->user_id, 'profile_picture', true);
-                                        if (empty($c_avatar)) {
-                                            $c_avatar = get_avatar_url($comment->comment_author_email, ['size' => 40]);
-                                        }
-                                        ?>
-                                        <div class="flex space-x-3">
-                                            <img class="w-8 h-8 rounded-full object-cover shrink-0"
-                                                src="<?php echo esc_url($c_avatar); ?>" alt="Commenter Avatar">
-                                            <div>
-                                                <p class="text-sm font-semibold text-gray-900">
-                                                    <?php echo esc_html($comment->comment_author); ?> <span
-                                                        class="text-xs font-normal text-gray-500 ml-1">·
-                                                        hace
-                                                        <?php echo human_time_diff(strtotime($comment->comment_date), current_time('timestamp')); ?></span>
-                                                </p>
-                                                <p class="text-sm text-gray-700"><?php echo get_comment_text($comment); ?></p>
-                                            </div>
-                                        </div>
-                                    <?php endforeach;
-                                else: ?>
-                                    <p class="text-sm text-gray-500 italic">Aún no hay comentarios. ¡Sé el primero!</p>
-                                <?php endif; ?>
-                            </div>
-
-                            <!-- 6. Comment Input Bar (Only for Subscribers) -->
-                            <?php if ($is_subscriber): ?>
-                                <div class="mt-6 pt-4 border-t border-border-light">
-                                    <div class="flex items-center space-x-3">
-                                        <?php
-                                        // Get custom profile picture for current user
-                                        $current_user_avatar = get_user_meta(get_current_user_id(), 'profile_picture', true);
-                                        if (empty($current_user_avatar)) {
-                                            $current_user_avatar = get_avatar_url(get_current_user_id(), ['size' => 40]);
-                                        }
-                                        ?>
-                                        <img class="w-10 h-10 rounded-full object-cover shrink-0"
-                                            src="<?php echo esc_url($current_user_avatar); ?>" alt="My Avatar">
-                                        <form action="<?php echo esc_url(site_url('/wp-comments-post.php')); ?>" method="post"
-                                            class="flex-grow flex items-center space-x-2 flow-comment-form">
-                                            <input type="hidden" name="comment_post_ID" value="<?php echo $post_id; ?>" />
-                                            <input type="hidden" name="redirect_to"
-                                                value="<?php echo esc_url(get_post_type_archive_link('flow-post')); ?>" />
-                                            <input type="text" name="comment" placeholder="Únete a la discusión..."
-                                                class="comment-input flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-blue focus:border-primary-blue transition-shadow shadow-inner text-sm outline-none"
-                                                required>
-                                            <button type="submit"
-                                                class="bg-black text-white p-3 px-6 rounded-md font-semibold hover:bg-gray-800 transition-colors">Publicar</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            <?php else: ?>
-                                <!-- Non-subscribers see a message -->
-                                <div class="mt-6 pt-4 border-t border-border-light">
-                                    <p class="text-center text-gray-500 italic py-4">
-                                        <a href="<?php echo home_url('/membership-signup/'); ?>"
-                                            class="text-primary-blue hover:underline font-semibold">Suscríbete</a> para unirte a la
-                                        discusión
-                                    </p>
-                                </div>
-                            <?php endif; ?>
-
-                        </div>
+                    <!-- Pagination -->
+                    <div class="flex justify-center mt-8">
+                        <?php the_posts_pagination(['prev_text' => '« Anterior', 'next_text' => 'Siguiente »', 'class' => 'pagination']); ?>
                     </div>
-                    <!-- End Post Card -->
 
-                    <div class="h-8"></div> <!-- Spacer -->
-
-                <?php endwhile; ?>
-
-                <!-- Pagination -->
-                <div class="flex justify-center mt-8">
-                    <?php the_posts_pagination(['prev_text' => '« Anterior', 'next_text' => 'Siguiente »', 'class' => 'pagination']); ?>
-                </div>
-
-            <?php else: ?>
-                <p class="text-center text-gray-500">No Flow Posts published yet!</p>
-            <?php endif; ?>
-
+                <?php else: ?>
+                    <p class="text-center text-gray-500 py-12">No hay publicaciones disponibles.</p>
+                <?php endif; ?>
+            </div> <!-- End #flow-posts-container -->
         </div>
     </div>
 
     <script>
-        // Simple function for the "alert" box instead of window.alert()
+        // Simple function for the "alert" box instead of window.alert                   ()
         function alert(message) {
             const container = document.querySelector('.w-full.max-w-xl');
             let alertBox = document.getElementById('custom-alert');
@@ -573,8 +567,8 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                     formContainer.classList.toggle('form-hidden');
                     const isHidden = formContainer.classList.contains('form-hidden');
                     toggleButton.innerHTML = isHidden
-                        ? '<svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>'
-                        : '<svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
+                        ? '<svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>'
+                        : '<svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
                 });
             }
 
@@ -582,7 +576,6 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
             const filterButton = document.getElementById('filter-button');
             const filterPanel = document.getElementById('filter-panel');
             const filterOverlay = document.getElementById('filter-overlay');
-            const createPostButton = document.getElementById('toggle-post-form');
 
             if (filterButton && filterPanel && filterOverlay) {
                 const toggleFilterPanel = () => {
@@ -592,25 +585,116 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
                         // Close panel
                         filterPanel.classList.add('-translate-x-full');
                         filterOverlay.classList.add('hidden');
-                        // Move buttons back to original position
-                        filterButton.style.transform = 'translateX(0)';
-                        if (createPostButton) {
-                            createPostButton.style.transform = 'translateX(0)';
-                        }
+                        // No need to move buttons anymore
                     } else {
                         // Open panel
                         filterPanel.classList.remove('-translate-x-full');
                         filterOverlay.classList.remove('hidden');
-                        // Move buttons to the right (panel width 320px + 20px gap = 340px)
-                        filterButton.style.transform = 'translateX(340px)';
-                        if (createPostButton) {
-                            createPostButton.style.transform = 'translateX(340px)';
-                        }
+                        // No need to move buttons anymore
                     }
                 };
 
                 filterButton.addEventListener('click', toggleFilterPanel);
                 filterOverlay.addEventListener('click', toggleFilterPanel);
+            }
+
+            // Filter Logic
+            const applyFiltersBtn = document.getElementById('apply-filters');
+            const clearFiltersBtn = document.getElementById('clear-filters');
+            const videoCheckbox = document.getElementById('filter-video');
+            const photoCheckbox = document.getElementById('filter-photo');
+            const textCheckbox = document.getElementById('filter-text');
+            const dateFromInput = document.getElementById('filter-date-from');
+            const dateToInput = document.getElementById('filter-date-to');
+
+            console.log('Filter buttons found:', {
+                applyBtn: !!applyFiltersBtn,
+                clearBtn: !!clearFiltersBtn,
+                videoCheck: !!videoCheckbox,
+                photoCheck: !!photoCheckbox,
+                textCheck: !!textCheckbox
+            });
+
+            async function applyFilters() {
+                // Collect filter values
+                const postTypes = [];
+                if (videoCheckbox?.checked) postTypes.push('video');
+                if (photoCheckbox?.checked) postTypes.push('photo');
+                if (textCheckbox?.checked) postTypes.push('text');
+
+                const dateFrom = dateFromInput?.value || '';
+                const dateTo = dateToInput?.value || '';
+
+                // Get posts container
+                const postsContainer = document.getElementById('flow-posts-container');
+                if (!postsContainer) return;
+
+                // Show loading indicator
+                postsContainer.innerHTML = '<div class="text-center py-12"><div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue"></div><p class="mt-4 text-gray-600">Cargando...</p></div>';
+
+                try {
+                    // Make AJAX request
+                    console.log('Sending filter request...');
+
+                    // Build form data properly for arrays
+                    const formData = new URLSearchParams();
+                    formData.append('action', 'flow_filter_posts');
+
+                    // Append each post type individually
+                    postTypes.forEach(type => {
+                        formData.append('post_types[]', type);
+                    });
+
+                    formData.append('date_from', dateFrom);
+                    formData.append('date_to', dateTo);
+
+                    const response = await fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: formData
+                    });
+
+                    console.log('Response status:', response.status);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('Response data:', data);
+
+                    if (data.success) {
+                        postsContainer.innerHTML = data.data.html;
+                    } else {
+                        console.error('AJAX error:', data);
+                        postsContainer.innerHTML = '<div class="text-center py-12 text-red-500">Error al cargar los posts.</div>';
+                    }
+                } catch (error) {
+                    console.error('Filter error:', error);
+                    postsContainer.innerHTML = '<div class="text-center py-12 text-red-500">Error: ' + error.message + '</div>';
+                }
+            }
+
+            async function clearFilters() {
+                // Reset checkboxes and inputs
+                if (videoCheckbox) videoCheckbox.checked = false;
+                if (photoCheckbox) photoCheckbox.checked = false;
+                if (textCheckbox) textCheckbox.checked = false;
+                if (dateFromInput) dateFromInput.value = '';
+                if (dateToInput) dateToInput.value = '';
+
+                // Reload all posts (no filters)
+                await applyFilters();
+            }
+
+            if (applyFiltersBtn) {
+                applyFiltersBtn.addEventListener('click', applyFilters);
+            }
+
+            if (clearFiltersBtn) {
+                clearFiltersBtn.addEventListener('click', clearFilters);
             }
 
             // Photo Upload Logic (Simplified)
