@@ -16,6 +16,7 @@ if (!defined('ABSPATH')) {
 
 // Define plugin constants.
 define('FLOW_SUB_VERSION', '1.0.0');
+define('FLOW_SUB_DB_VERSION', '1.0.1'); // Database schema version
 define('FLOW_SUB_PATH', plugin_dir_path(__FILE__));
 define('FLOW_SUB_URL', plugin_dir_url(__FILE__));
 
@@ -24,6 +25,14 @@ define('FLOW_SUB_URL', plugin_dir_url(__FILE__));
  */
 function flow_sub_init()
 {
+	// Include database classes
+	require_once FLOW_SUB_PATH . 'includes/database/class-flow-sub-installer.php';
+	require_once FLOW_SUB_PATH . 'includes/database/class-flow-sub-upgrader.php';
+
+	// Include reactions classes
+	require_once FLOW_SUB_PATH . 'includes/reactions/class-flow-sub-reactions.php';
+	require_once FLOW_SUB_PATH . 'includes/reactions/ajax-reaction-handler.php';
+
 	// Include the admin class.
 	require_once FLOW_SUB_PATH . 'includes/class-flow-sub-admin.php';
 
@@ -113,9 +122,26 @@ function flow_post_add_roles()
 		}
 	}
 }
-register_activation_hook(__FILE__, 'flow_post_add_roles');
+
+/**
+ * Plugin Activation Hook: Install database tables
+ */
+function flow_sub_activate()
+{
+	// Add roles and capabilities
+	flow_post_add_roles();
+
+	// Install database tables
+	require_once FLOW_SUB_PATH . 'includes/database/class-flow-sub-installer.php';
+	Flow_Sub_Installer::install();
+}
+register_activation_hook(__FILE__, 'flow_sub_activate');
+
 // Force role update on admin init to ensure caps are present
 add_action('admin_init', 'flow_post_add_roles');
+
+// Hook database upgrader to admin_init for automatic schema updates
+add_action('admin_init', ['Flow_Sub_Upgrader', 'maybe_upgrade']);
 
 /**
  * Plugin Deactivation Hook: Removes the custom role (cleanup).

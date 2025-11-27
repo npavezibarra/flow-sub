@@ -53,13 +53,26 @@
         $gallery_ids = array_slice($gallery_ids, 0, 4);
         $grid_class = 'grid-cols-' . (count($gallery_ids) == 1 ? '1' : '2');
         ?>
-        <div class="grid <?php echo $grid_class; ?> gap-0.5 !p-0 !pb-0 !h-auto rounded-t-xl relative">
-            <?php foreach ($gallery_ids as $attachment_id):
-                $image_url = wp_get_attachment_image_url($attachment_id, 'large');
-                if ($image_url): ?>
-                    <img class="w-full h-auto object-cover aspect-square" src="<?php echo esc_url($image_url); ?>"
-                        alt="Gallery Image">
-                <?php endif; endforeach; ?>
+        <div class="flow-photo-gallery-container relative rounded-t-xl overflow-hidden" style="height: 350px;"
+            data-post-id="<?php echo $post_id; ?>">
+            <div class="grid <?php echo $grid_class; ?> gap-0.5 h-full">
+                <?php foreach ($gallery_ids as $index => $attachment_id):
+                    $image_url = wp_get_attachment_image_url($attachment_id, 'large');
+                    $full_image_url = wp_get_attachment_image_url($attachment_id, 'full');
+                    if ($image_url): ?>
+                        <img class="w-full h-full object-cover gallery-image" src="<?php echo esc_url($image_url); ?>"
+                            data-full-src="<?php echo esc_url($full_image_url); ?>" data-index="<?php echo $index; ?>"
+                            alt="Gallery Image">
+                    <?php endif; endforeach; ?>
+            </div>
+
+            <!-- Expand Button (shows on hover) -->
+            <button class="flow-expand-btn" aria-label="View fullscreen">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
+                    </path>
+                </svg>
+            </button>
 
             <?php if (!$is_subscriber): ?>
                 <!-- Paywall Overlay for Non-Subscribers -->
@@ -74,15 +87,202 @@
                 </div>
             <?php endif; ?>
         </div>
+
+        <!-- Fullscreen Modal (hidden by default) -->
+        <div class="flow-fullscreen-modal" id="modal-<?php echo $post_id; ?>" style="display: none;">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <button class="modal-close" aria-label="Close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+                <img class="modal-image" src="" alt="Fullscreen view">
+            </div>
+        </div>
+
+        <style>
+            /* Photo Gallery Styles */
+            .flow-photo-gallery-container {
+                position: relative;
+            }
+
+            .flow-photo-gallery-container .gallery-image {
+                cursor: pointer;
+            }
+
+            /* Expand Button */
+            .flow-expand-btn {
+                position: absolute;
+                top: 12px;
+                right: 12px;
+                width: 40px;
+                height: 40px;
+                background: rgba(0, 0, 0, 0.6);
+                border: none;
+                border-radius: 50%;
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                opacity: 0;
+                transition: all 0.3s ease;
+                z-index: 5;
+            }
+
+            .flow-photo-gallery-container:hover .flow-expand-btn {
+                opacity: 1;
+            }
+
+            .flow-expand-btn:hover {
+                background: rgba(0, 0, 0, 0.8);
+                transform: scale(1.1);
+            }
+
+            /* Fullscreen Modal */
+            .flow-fullscreen-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                z-index: 9999;
+            }
+
+            .modal-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.95);
+                backdrop-filter: blur(10px);
+            }
+
+            .modal-content {
+                position: relative;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 40px;
+            }
+
+            .modal-image {
+                max-width: 90%;
+                max-height: 90%;
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            }
+
+            .modal-close {
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                width: 44px;
+                height: 44px;
+                background: rgba(255, 255, 255, 0.1);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 50%;
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+
+            .modal-close:hover {
+                background: rgba(255, 255, 255, 0.2);
+                transform: scale(1.1);
+            }
+        </style>
+
+        <script>
+            (function () {
+                const postId = <?php echo $post_id; ?>;
+                const container = document.querySelector(`[data-post-id="${postId}"].flow-photo-gallery-container`);
+                const modal = document.getElementById(`modal-${postId}`);
+                const modalImage = modal.querySelector('.modal-image');
+                const expandBtn = container.querySelector('.flow-expand-btn');
+                const closeBtn = modal.querySelector('.modal-close');
+                const overlay = modal.querySelector('.modal-overlay');
+                const galleryImages = container.querySelectorAll('.gallery-image');
+
+                // Open modal function
+                function openModal(imageSrc) {
+                    modalImage.src = imageSrc;
+                    modal.style.display = 'block';
+                    document.body.style.overflow = 'hidden';
+                }
+
+                // Close modal function
+                function closeModal() {
+                    modal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+
+                // Expand button click - show first image
+                expandBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const firstImage = galleryImages[0];
+                    const fullSrc = firstImage.dataset.fullSrc || firstImage.src;
+                    openModal(fullSrc);
+                });
+
+                // Gallery image click
+                galleryImages.forEach(function (img) {
+                    img.addEventListener('click', function () {
+                        const fullSrc = this.dataset.fullSrc || this.src;
+                        openModal(fullSrc);
+                    });
+                });
+
+                // Close button click
+                closeBtn.addEventListener('click', closeModal);
+
+                // Overlay click
+                overlay.addEventListener('click', closeModal);
+
+                // ESC key to close
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape' && modal.style.display === 'block') {
+                        closeModal();
+                    }
+                });
+            })();
+        </script>
     <?php endif; ?>
 
     <!-- Inner Content Area -->
     <div class="p-4 md:p-6">
 
-        <!-- 2. Post Title -->
-        <h2 class="text-2xl font-extrabold text-gray-900 mb-2 text-left">
-            <?php the_title(); ?>
-        </h2>
+        <!-- 2. Title and Reactions Row -->
+        <div class="flex items-start gap-4 mb-2">
+            <!-- Title (66% width) -->
+            <h2 class="text-2xl font-extrabold text-gray-900 text-left" style="flex: 0 0 66%;">
+                <?php the_title(); ?>
+            </h2>
+
+            <!-- Reactions (33% width) - aligned to top right -->
+            <div style="flex: 0 0 33%; display: flex; align-items: flex-start; justify-content: flex-end;">
+                <?php
+                // Get reaction data
+                $reaction_counts = Flow_Sub_Reactions::get_reaction_counts($post_id);
+                $like_count = $reaction_counts['likes'];
+                $dislike_count = $reaction_counts['dislikes'];
+                $user_reaction = is_user_logged_in() ? Flow_Sub_Reactions::get_user_reaction($post_id, get_current_user_id()) : null;
+
+                // Include reaction buttons template
+                include(plugin_dir_path(__FILE__) . 'reaction-buttons.php');
+                ?>
+            </div>
+        </div>
 
         <!-- Author & Date -->
         <div class="flex items-center text-sm text-gray-500 mb-4">
@@ -96,19 +296,9 @@
             <?php the_content(); ?>
         </div>
 
-        <!-- 4. Interaction Status & Like Button -->
+        <!-- 4. Comment Count & Share -->
         <div class="flex justify-between items-center text-gray-500 mb-6 pb-3 border-b border-border-light">
             <div class="flex items-center space-x-4">
-                <!-- Like Status/Button (Visual Only for now) -->
-                <button class="flex items-center text-gray-500 hover:text-accent-red transition-colors">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd"
-                            d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
-                            clip-rule="evenodd"></path>
-                    </svg>
-                    <span
-                        class="text-sm font-medium text-gray-700 ml-1"><?php echo rand(10, 50); // Fake random likes ?></span>
-                </button>
                 <!-- Comment Count -->
                 <span class="text-sm text-gray-500 cursor-pointer hover:text-primary-blue"><?php echo $comment_count; ?>
                     Comentarios</span>
