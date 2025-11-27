@@ -21,13 +21,18 @@ if (!defined('ABSPATH')) {
 // Determine active states
 $like_active = ($user_reaction === 1) ? 'active' : '';
 $dislike_active = ($user_reaction === 0) ? 'active' : '';
+
+// Determine disabled state
+$is_disabled = !isset($is_subscriber) || !$is_subscriber;
+$disabled_class = $is_disabled ? 'disabled' : '';
+$disabled_attr = $is_disabled ? 'disabled' : '';
 ?>
 
 <div class="flow-reactions" data-post-id="<?php echo esc_attr($post_id); ?>">
     <!-- Like Button -->
-    <button class="reaction-btn like-btn <?php echo esc_attr($like_active); ?>" data-reaction="1"
-        aria-label="<?php esc_attr_e('Like this post', 'flow-sub'); ?>"
-        title="<?php esc_attr_e('Like', 'flow-sub'); ?>">
+    <button class="reaction-btn like-btn <?php echo esc_attr($like_active . ' ' . $disabled_class); ?>"
+        data-reaction="1" aria-label="<?php esc_attr_e('Like this post', 'flow-sub'); ?>"
+        title="<?php esc_attr_e('Like', 'flow-sub'); ?>" <?php echo $disabled_attr; ?>>
         <!-- Thumbs Up SVG Icon -->
         <svg class="reaction-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -39,9 +44,9 @@ $dislike_active = ($user_reaction === 0) ? 'active' : '';
     </button>
 
     <!-- Dislike Button -->
-    <button class="reaction-btn dislike-btn <?php echo esc_attr($dislike_active); ?>" data-reaction="0"
-        aria-label="<?php esc_attr_e('Dislike this post', 'flow-sub'); ?>"
-        title="<?php esc_attr_e('Dislike', 'flow-sub'); ?>">
+    <button class="reaction-btn dislike-btn <?php echo esc_attr($dislike_active . ' ' . $disabled_class); ?>"
+        data-reaction="0" aria-label="<?php esc_attr_e('Dislike this post', 'flow-sub'); ?>"
+        title="<?php esc_attr_e('Dislike', 'flow-sub'); ?>" <?php echo $disabled_attr; ?>>
         <!-- Thumbs Down SVG Icon -->
         <svg class="reaction-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

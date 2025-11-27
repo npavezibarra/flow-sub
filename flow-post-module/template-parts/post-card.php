@@ -26,15 +26,28 @@
     <!-- 1. Featured Media (TOP) with Soft Paywall -->
     <?php if ($is_video_post): ?>
         <div class="media-placeholder rounded-t-xl relative z-30 overflow-visible">
-            <?php
-            // Use WordPress oEmbed
-            $embed_code = wp_oembed_get($video_url, ['width' => 800]);
-            if ($embed_code) {
-                echo $embed_code;
-            } else {
-                echo '<div class="absolute inset-0 flex items-center justify-center text-white">Invalid Video URL</div>';
-            }
-            ?>
+            <div class="rounded-t-xl overflow-hidden absolute inset-0 w-full h-full z-0">
+                <?php
+                // Try to extract YouTube ID
+                $video_id = '';
+                if (preg_match('/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i', $video_url, $matches)) {
+                    $video_id = $matches[1];
+                }
+
+                if ($video_id) {
+                    // Manual YouTube Embed
+                    echo '<iframe class="absolute inset-0 w-full h-full" src="https://www.youtube.com/embed/' . esc_attr($video_id) . '" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+                } else {
+                    // Fallback to WordPress oEmbed for other providers (Vimeo, etc.)
+                    $embed_code = wp_oembed_get($video_url, ['width' => 800]);
+                    if ($embed_code) {
+                        echo $embed_code;
+                    } else {
+                        echo '<div class="absolute inset-0 flex items-center justify-center text-white">Invalid Video URL</div>';
+                    }
+                }
+                ?>
+            </div>
 
             <?php if (!$is_subscriber): ?>
                 <!-- Paywall Overlay for Non-Subscribers -->
@@ -100,10 +113,10 @@
                                             <button type="submit"
                                                 class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hover:text-gray-900"
                                                 role="menuitem">
-                                                <span class="font-bold"><?php echo esc_html($plan['name']); ?></span>
                                                 <?php if (isset($plan['amount'])): ?>
-                                                    <span class="text-gray-500 text-xs ml-1">-
-                                                        $<?php echo number_format($plan['amount'], 0, ',', '.'); ?></span>
+                                                    <span class="font-bold">$<?php echo number_format($plan['amount'], 0, ',', '.'); ?> mensuales</span>
+                                                <?php else: ?>
+                                                    <span class="font-bold"><?php echo esc_html($plan['name']); ?></span>
                                                 <?php endif; ?>
                                             </button>
                                         </form>
@@ -137,15 +150,17 @@
         ?>
         <div class="flow-photo-gallery-container relative rounded-t-xl overflow-visible z-30" style="height: 350px;"
             data-post-id="<?php echo $post_id; ?>">
-            <div class="grid <?php echo $grid_class; ?> gap-0.5 h-full">
-                <?php foreach ($gallery_ids as $index => $attachment_id):
-                    $image_url = wp_get_attachment_image_url($attachment_id, 'large');
-                    $full_image_url = wp_get_attachment_image_url($attachment_id, 'full');
-                    if ($image_url): ?>
-                        <img class="w-full h-full object-cover gallery-image" src="<?php echo esc_url($image_url); ?>"
-                            data-full-src="<?php echo esc_url($full_image_url); ?>" data-index="<?php echo $index; ?>"
-                            alt="Gallery Image">
-                    <?php endif; endforeach; ?>
+            <div class="absolute inset-0 rounded-t-xl overflow-hidden z-0">
+                <div class="grid <?php echo $grid_class; ?> gap-0.5 h-full">
+                    <?php foreach ($gallery_ids as $index => $attachment_id):
+                        $image_url = wp_get_attachment_image_url($attachment_id, 'large');
+                        $full_image_url = wp_get_attachment_image_url($attachment_id, 'full');
+                        if ($image_url): ?>
+                            <img class="w-full h-full object-cover gallery-image" src="<?php echo esc_url($image_url); ?>"
+                                data-full-src="<?php echo esc_url($full_image_url); ?>" data-index="<?php echo $index; ?>"
+                                alt="Gallery Image">
+                        <?php endif; endforeach; ?>
+                </div>
             </div>
 
             <!-- Expand Button (shows on hover) -->
@@ -221,10 +236,10 @@
                                             <button type="submit"
                                                 class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hover:text-gray-900"
                                                 role="menuitem">
-                                                <span class="font-bold"><?php echo esc_html($plan['name']); ?></span>
                                                 <?php if (isset($plan['amount'])): ?>
-                                                    <span class="text-gray-500 text-xs ml-1">-
-                                                        $<?php echo number_format($plan['amount'], 0, ',', '.'); ?></span>
+                                                    <span class="font-bold">$<?php echo number_format($plan['amount'], 0, ',', '.'); ?> mensuales</span>
+                                                <?php else: ?>
+                                                    <span class="font-bold"><?php echo esc_html($plan['name']); ?></span>
                                                 <?php endif; ?>
                                             </button>
                                         </form>
@@ -428,7 +443,20 @@
         <!-- 2. Title and Reactions Row -->
         <div class="flex items-start gap-4 mb-2">
             <!-- Title (66% width) -->
-            <h2 class="text-2xl font-extrabold text-gray-900 text-left" style="flex: 0 0 66%;">
+            <h2 class="text-2xl font-extrabold text-gray-900 text-left flex items-center gap-2" style="flex: 0 0 66%;">
+                <?php if (current_user_can('edit_post', $post_id)): ?>
+                    <button class="edit-flow-post-btn text-gray-400 hover:text-primary-blue transition-colors"
+                        data-post-id="<?php echo esc_attr($post_id); ?>"
+                        data-title="<?php echo esc_attr(get_the_title()); ?>"
+                        data-content="<?php echo esc_attr(get_the_content()); ?>"
+                        data-video-url="<?php echo esc_attr($video_url); ?>"
+                        title="Editar Publicación">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                    </button>
+                <?php endif; ?>
                 <?php the_title(); ?>
             </h2>
 
@@ -476,6 +504,7 @@
             </button>
         </div>
 
+        <?php if ($is_subscriber): ?>
         <!-- 5. Comments Section (Preview) -->
         <div class="space-y-4">
             <h3 class="text-lg font-bold text-gray-900">Discusión</h3>
@@ -588,6 +617,13 @@
                 });
             })();
         </script>
+        <?php else: ?>
+            <div class="mt-6 pt-4 border-t border-border-light">
+                <p class="text-center text-gray-500 py-4">
+                    Escoge un plan para ver todas las publicaciones y unirte a la conversación
+                </p>
+            </div>
+        <?php endif; ?>
 
         <!-- 6. Comment Input Bar (Only for Subscribers) -->
         <?php if ($is_subscriber): ?>
@@ -615,16 +651,7 @@
                     </form>
                 </div>
             </div>
-        <?php else: ?>
-            <!-- Non-subscribers see a message -->
-            <div class="mt-6 pt-4 border-t border-border-light">
-                <p class="text-center text-gray-500 italic py-4">
-                    <a href="<?php echo home_url('/membership-signup/'); ?>"
-                        class="text-primary-blue hover:underline font-semibold">Suscríbete</a> para unirte a
-                    la
-                    discusión
-                </p>
-            </div>
+
         <?php endif; ?>
 
     </div>

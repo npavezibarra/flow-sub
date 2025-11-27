@@ -26,6 +26,7 @@ class Flow_Post_Creation
         }
 
         // --- 3. Gather and Sanitize Data ---
+        $post_id_to_edit = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
         $post_title = sanitize_text_field($_POST['post-title']);
         $post_content = isset($_POST['post-text']) ? wp_kses_post($_POST['post-text']) : '';
         $video_url = isset($_POST['video-link']) ? esc_url_raw($_POST['video-link']) : '';
@@ -36,16 +37,26 @@ class Flow_Post_Creation
             exit;
         }
 
-        // --- 4. Insert the Post ---
+        // --- 4. Insert or Update the Post ---
         $post_data = [
             'post_title' => $post_title,
             'post_content' => $post_content,
             'post_status' => 'publish',
             'post_type' => 'flow-post',
-            'post_author' => get_current_user_id(),
         ];
 
-        $post_id = wp_insert_post($post_data);
+        if ($post_id_to_edit > 0) {
+            // Verify permission and ownership
+            $existing_post = get_post($post_id_to_edit);
+            if (!$existing_post || ($existing_post->post_author != get_current_user_id() && !current_user_can('manage_options'))) {
+                wp_die('You do not have permission to edit this post.', 403);
+            }
+            $post_data['ID'] = $post_id_to_edit;
+            $post_id = wp_update_post($post_data);
+        } else {
+            $post_data['post_author'] = get_current_user_id();
+            $post_id = wp_insert_post($post_data);
+        }
 
         if (is_wp_error($post_id) || $post_id === 0) {
             // Handle post insertion error
@@ -54,7 +65,7 @@ class Flow_Post_Creation
         }
 
         // --- 5. Handle Media Uploads (Photos) ---
-        $gallery_ids = [];
+        $new_gallery_ids = [];
         $files = $_FILES['photo-upload'];
 
         if (!empty($files['name'][0]) && is_array($files['name'])) {
@@ -67,8 +78,8 @@ class Flow_Post_Creation
 
             // Loop through each uploaded file item
             foreach ($file_keys as $key) {
-                if (count($gallery_ids) >= 4) {
-                    break; // Max 4 photos allowed
+                if (count($new_gallery_ids) >= 4) {
+                    break; // Max 4 photos allowed per upload batch
                 }
 
                 // Prepare the $_FILES array for the current single file upload
@@ -96,7 +107,7 @@ class Flow_Post_Creation
                     if (!is_wp_error($attachment_id) && $attachment_id > 0) {
                         // Resize the uploaded image
                         self::resize_uploaded_image($attachment_id);
-                        $gallery_ids[] = $attachment_id;
+                        $new_gallery_ids[] = $attachment_id;
                     }
 
                     // Cleanup global variable for next loop iteration
@@ -107,9 +118,21 @@ class Flow_Post_Creation
 
         // --- 6. Save Post Meta ---
         update_post_meta($post_id, 'flow_post_video_url', $video_url);
-        if (!empty($gallery_ids)) {
-            // Save as comma-separated string for easy retrieval
-            update_post_meta($post_id, 'flow_post_gallery_ids', implode(',', $gallery_ids));
+
+        if (!empty($new_gallery_ids)) {
+            // If editing, merge with existing IDs
+            if ($post_id_to_edit > 0) {
+                $existing_ids_str = get_post_meta($post_id, 'flow_post_gallery_ids', true);
+                $existing_ids = $existing_ids_str ? explode(',', $existing_ids_str) : [];
+                $final_ids = array_merge($existing_ids, $new_gallery_ids);
+                // Limit to 4 total? Or just limit upload batch? User didn't specify strict limit on total.
+                // But admin UI says "Select up to 4 images".
+                // I'll slice to 4 to be safe and consistent.
+                $final_ids = array_slice($final_ids, 0, 4);
+                update_post_meta($post_id, 'flow_post_gallery_ids', implode(',', $final_ids));
+            } else {
+                update_post_meta($post_id, 'flow_post_gallery_ids', implode(',', $new_gallery_ids));
+            }
         }
 
 

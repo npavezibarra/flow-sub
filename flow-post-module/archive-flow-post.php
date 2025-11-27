@@ -260,9 +260,30 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
             box-shadow: 0 0 0 3px rgba(29, 161, 242, 0.5);
         }
 
-        /* Admin Form Styles */
-        .form-hidden {
+        /* Admin Form Modal Styles */
+        #flow-post-creation-form {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+
+        #flow-post-creation-form.form-hidden {
             display: none;
+        }
+
+        #flow-post-creation-form .post-card {
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            margin: 0;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         }
 
         #photo-upload-area.drag-over {
@@ -465,14 +486,20 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 <?php endif; ?>
 
                 <!-- Admin Post Creation Form -->
-                <div id="flow-post-creation-form" class="form-hidden mb-8 max-w-xl mx-auto">
-                    <div class="post-card bg-card-bg rounded-xl border border-black overflow-hidden p-6 md:p-8">
-                        <h2 class="text-xl font-bold text-black mb-6 border-b border-border-light pb-4">Nueva
-                            Publicación Flow
-                        </h2>
+                <div id="flow-post-creation-form" class="form-hidden">
+                    <div class="post-card bg-card-bg rounded-xl border border-black overflow-hidden p-6 md:p-8 relative">
+                        <div class="flex justify-between items-center mb-6 border-b border-border-light pb-4">
+                            <h2 class="text-xl font-bold text-black">Nueva Publicación Flow</h2>
+                            <button type="button" id="close-modal-btn" class="text-gray-500 hover:text-black transition-colors">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
                         <form id="flow-post-form" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post"
                             enctype="multipart/form-data" class="space-y-5">
                             <input type="hidden" name="action" value="create_flow_post">
+                            <input type="hidden" name="post_id" id="post_id" value="">
                             <?php wp_nonce_field('create_flow_post_action', 'flow_post_nonce'); ?>
 
                             <div>
@@ -529,7 +556,7 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 </div>
             <?php endif; ?>
 
-            <div id="flow-posts-container" class="grid grid-cols-1 min-[1080px]:grid-cols-2 gap-8">
+            <div id="flow-posts-container" class="grid grid-cols-1 min-[1080px]:grid-cols-2 gap-8 pt-[20px]">
                 <?php if (have_posts()): ?>
                     <?php while (have_posts()):
                         the_post();
@@ -620,16 +647,92 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
         document.addEventListener('DOMContentLoaded', () => {
             const toggleButton = document.getElementById('toggle-post-form');
             const formContainer = document.getElementById('flow-post-creation-form');
+            const closeModalBtn = document.getElementById('close-modal-btn');
 
             if (toggleButton && formContainer) {
+                // Open Modal
                 toggleButton.addEventListener('click', () => {
-                    formContainer.classList.toggle('form-hidden');
-                    const isHidden = formContainer.classList.contains('form-hidden');
-                    toggleButton.innerHTML = isHidden
-                        ? '<svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>'
-                        : '<svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
+                    formContainer.classList.remove('form-hidden');
+                    
+                    // Reset form for new post
+                    const form = document.getElementById('flow-post-form');
+                    const formTitle = formContainer.querySelector('h2');
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    const postIdInput = document.getElementById('post_id');
+                    
+                    if (form) form.reset();
+                    if (formTitle) formTitle.textContent = 'Nueva Publicación Flow';
+                    if (submitBtn) submitBtn.textContent = 'Publicar';
+                    if (postIdInput) postIdInput.value = '';
+                    document.getElementById('file-list').innerHTML = '';
+                });
+
+                // Close Modal Function
+                const closeFlowModal = () => {
+                    formContainer.classList.add('form-hidden');
+                };
+
+                // Close on X button
+                if (closeModalBtn) {
+                    closeModalBtn.addEventListener('click', closeFlowModal);
+                }
+
+                // Close on backdrop click
+                formContainer.addEventListener('click', (e) => {
+                    if (e.target === formContainer) {
+                        closeFlowModal();
+                    }
+                });
+                
+                // Close on Escape key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && !formContainer.classList.contains('form-hidden')) {
+                        closeFlowModal();
+                    }
                 });
             }
+
+                // Edit Post Logic
+                document.addEventListener('click', function (e) {
+                    const editBtn = e.target.closest('.edit-flow-post-btn');
+                    if (editBtn) {
+                        e.preventDefault();
+
+                        const postId = editBtn.dataset.postId;
+                        const title = editBtn.dataset.title;
+                        const content = editBtn.dataset.content;
+                        const videoUrl = editBtn.dataset.videoUrl;
+
+                        // Populate form
+                        const form = document.getElementById('flow-post-form');
+                        const titleInput = document.getElementById('post-title');
+                        const textInput = document.getElementById('post-text');
+                        const videoInput = document.getElementById('video-link');
+                        const postIdInput = document.getElementById('post_id');
+                        const formTitle = formContainer.querySelector('h2');
+                        const submitBtn = form.querySelector('button[type="submit"]');
+
+                        if (formContainer && form) {
+                            // Open form if hidden
+                            if (formContainer.classList.contains('form-hidden')) {
+                                formContainer.classList.remove('form-hidden');
+                            }
+                            
+                            // Set values
+                            if(postIdInput) postIdInput.value = postId;
+                            if(titleInput) titleInput.value = title;
+                            if(textInput) textInput.value = content;
+                            if(videoInput) videoInput.value = videoUrl;
+                            
+                            // Update UI
+                            if(formTitle) formTitle.textContent = 'Editar Publicación Flow';
+                            if(submitBtn) submitBtn.textContent = 'Actualizar';
+                            
+                            // No need to scroll, it's a modal now
+                        }
+                    }
+                });
+            
 
             // Filter Panel Toggle Logic
             const filterButton = document.getElementById('filter-button');
