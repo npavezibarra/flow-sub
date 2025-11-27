@@ -166,7 +166,18 @@ class Flow_Sub_API
      */
     public function get_plans()
     {
-        return $this->get('plans/list');
+        $cached_plans = get_transient('flow_sub_all_plans');
+        if (false !== $cached_plans) {
+            return $cached_plans;
+        }
+
+        $response = $this->get('plans/list');
+
+        if (!is_wp_error($response) && isset($response['code']) && 200 === (int) $response['code']) {
+            set_transient('flow_sub_all_plans', $response, HOUR_IN_SECONDS);
+        }
+
+        return $response;
     }
 
     /**

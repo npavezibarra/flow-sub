@@ -170,7 +170,7 @@ class Flow_Post_Setup
                 'create_posts' => 'edit_flow_posts', // Users who can edit can create
             ],
             'map_meta_cap' => true,
-            'rewrite' => ['slug' => 'flow-post'],
+            'rewrite' => ['slug' => 'flow-feed'],
         ];
         register_post_type('flow-post', $args);
     }

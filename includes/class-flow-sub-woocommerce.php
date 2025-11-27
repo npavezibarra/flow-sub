@@ -23,7 +23,7 @@ class Flow_Sub_WooCommerce
         add_action('init', array($this, 'add_endpoint'));
         add_filter('query_vars', array($this, 'add_query_vars'), 0);
         add_filter('woocommerce_account_menu_items', array($this, 'add_menu_item'));
-        add_action('woocommerce_account_flow-subscriptions_endpoint', array($this, 'render_content'));
+        add_action('woocommerce_account_suscripciones_endpoint', array($this, 'render_content'));
         add_action('template_redirect', array($this, 'handle_cancellation'));
     }
 
@@ -32,7 +32,7 @@ class Flow_Sub_WooCommerce
      */
     public function add_endpoint()
     {
-        add_rewrite_endpoint('flow-subscriptions', EP_ROOT | EP_PAGES);
+        add_rewrite_endpoint('suscripciones', EP_ROOT | EP_PAGES);
     }
 
     /**
@@ -43,7 +43,7 @@ class Flow_Sub_WooCommerce
      */
     public function add_query_vars($vars)
     {
-        $vars[] = 'flow-subscriptions';
+        $vars[] = 'suscripciones';
         return $vars;
     }
 
@@ -61,7 +61,7 @@ class Flow_Sub_WooCommerce
             unset($items['customer-logout']);
         }
 
-        $items['flow-subscriptions'] = esc_html__('Suscripciones', 'flow-sub');
+        $items['suscripciones'] = esc_html__('Suscripciones', 'flow-sub');
 
         if ($logout) {
             $items['customer-logout'] = $logout;

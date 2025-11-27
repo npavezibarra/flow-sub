@@ -52,6 +52,7 @@ class Flow_Sub_Admin
         register_setting('flow_sub_options', 'flow_sub_api_key', array($this, 'encrypt_key'));
         register_setting('flow_sub_options', 'flow_sub_secret_key', array($this, 'encrypt_key'));
         register_setting('flow_sub_subscriptions_options', 'flow_sub_subscriptions_content');
+        register_setting('flow_sub_subscriptions_options', 'flow_sub_selected_plans');
         register_setting('flow_sub_theme_options', 'flow_sub_background_image');
     }
 
@@ -152,6 +153,49 @@ class Flow_Sub_Admin
                         'textarea_rows' => 10,
                         'teeny' => false
                     ));
+                    ?>
+
+                    <h2><?php esc_html_e('Botón Subscripciones', 'flow-sub'); ?></h2>
+                    <p><?php esc_html_e('Selecciona los planes que se mostrarán en el botón de suscripción (dropdown). Si no seleccionas ninguno, se mostrará el comportamiento por defecto.', 'flow-sub'); ?>
+                    </p>
+                    <?php
+                    $api_key = get_option('flow_sub_api_key');
+                    $secret_key = get_option('flow_sub_secret_key');
+
+                    if ($api_key && $secret_key) {
+                        require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
+                        $api = new Flow_Sub_API($api_key, $secret_key);
+                        $plans_response = $api->get_plans();
+                        $selected_plans = get_option('flow_sub_selected_plans', array());
+                        if (!is_array($selected_plans)) {
+                            $selected_plans = array();
+                        }
+
+                        if (is_wp_error($plans_response)) {
+                            echo '<div class="notice notice-error"><p>' . esc_html($plans_response->get_error_message()) . '</p></div>';
+                        } elseif (isset($plans_response['code']) && 200 !== (int) $plans_response['code']) {
+                            echo '<div class="notice notice-error"><p>' . esc_html($plans_response['message'] ?? 'Unknown error') . '</p></div>';
+                        } else {
+                            $plans = $plans_response['data'] ?? array();
+                            if (empty($plans)) {
+                                echo '<p>' . esc_html__('No se encontraron planes en Flow.', 'flow-sub') . '</p>';
+                            } else {
+                                echo '<fieldset>';
+                                foreach ($plans as $plan) {
+                                    $plan_id = $plan['planId'];
+                                    $plan_name = $plan['name'];
+                                    $checked = in_array($plan_id, $selected_plans) ? 'checked' : '';
+                                    echo '<label style="display: block; margin-bottom: 8px;">';
+                                    echo '<input type="checkbox" name="flow_sub_selected_plans[]" value="' . esc_attr($plan_id) . '" ' . $checked . '> ';
+                                    echo esc_html($plan_name . ' (' . $plan_id . ')');
+                                    echo '</label>';
+                                }
+                                echo '</fieldset>';
+                            }
+                        }
+                    } else {
+                        echo '<p class="description">' . esc_html__('Configura tus credenciales de API primero.', 'flow-sub') . '</p>';
+                    }
                     ?>
                     <?php submit_button(); ?>
                 </form>

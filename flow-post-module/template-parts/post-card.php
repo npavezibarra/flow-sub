@@ -20,12 +20,12 @@
 ?>
 
 <!-- POST CARD -->
-<div class="post-card bg-card-bg rounded-xl border border-border-light overflow-hidden"
+<div class="post-card bg-card-bg rounded-xl border border-border-light"
     data-post-type="<?php echo esc_attr($post_type_attr); ?>" data-post-date="<?php echo esc_attr($post_date); ?>">
 
     <!-- 1. Featured Media (TOP) with Soft Paywall -->
     <?php if ($is_video_post): ?>
-        <div class="media-placeholder rounded-t-xl relative">
+        <div class="media-placeholder rounded-t-xl relative z-30 overflow-visible">
             <?php
             // Use WordPress oEmbed
             $embed_code = wp_oembed_get($video_url, ['width' => 800]);
@@ -39,13 +39,95 @@
             <?php if (!$is_subscriber): ?>
                 <!-- Paywall Overlay for Non-Subscribers -->
                 <div
-                    class="absolute inset-0 z-10 flex flex-col justify-center items-center bg-black bg-opacity-70 backdrop-blur-sm p-4 text-center rounded-t-xl">
+                    class="absolute inset-0 z-10 overflow-visible flex flex-col justify-center items-center bg-black bg-opacity-70 backdrop-blur-sm p-4 text-center rounded-t-xl">
                     <h3 class="text-xl font-bold text-white mb-4">Contenido Exclusivo para Suscriptores</h3>
                     <p class="text-gray-300 mb-6">Únete a Flow para desbloquear este y todo el contenido.</p>
-                    <a href="<?php echo home_url('/membership-signup/'); ?>"
-                        class="bg-primary-blue text-white p-3 px-8 rounded-full font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity">
-                        Suscríbete Ahora
-                    </a>
+
+                    <?php
+                    $selected_plan_ids = get_option('flow_sub_selected_plans', array());
+                    $plans_to_show = array();
+
+                    if (!empty($selected_plan_ids)) {
+                        $cached_plans = get_transient('flow_sub_all_plans');
+
+                        if (false === $cached_plans) {
+                            // Fallback: Fetch from API if cache is empty
+                            $api_key = get_option('flow_sub_api_key');
+                            $secret_key = get_option('flow_sub_secret_key');
+                            if ($api_key && $secret_key) {
+                                require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
+                                $api = new Flow_Sub_API($api_key, $secret_key);
+                                $cached_plans = $api->get_plans(); // This method now handles caching internally
+                            }
+                        }
+
+                        if ($cached_plans && isset($cached_plans['data'])) {
+                            foreach ($cached_plans['data'] as $p) {
+                                if (in_array($p['planId'], $selected_plan_ids)) {
+                                    $plans_to_show[] = $p;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!empty($plans_to_show)):
+                        ?>
+                        <div class="relative inline-block text-left flow-sub-dropdown">
+                            <button type="button"
+                                class="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-8 py-3 text-base font-bold text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-[#f50] transition-all"
+                                style="background-color: #f50;" id="menu-button-video-<?php echo $post_id; ?>" aria-expanded="true"
+                                aria-haspopup="true"
+                                onclick="document.getElementById('dropdown-menu-video-<?php echo $post_id; ?>').classList.toggle('hidden');">
+                                Escoge tu Plan
+                                <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                    fill="currentColor" aria-hidden="true">
+                                    <path fill-rule="evenodd"
+                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                            </button>
+
+                            <div class="hidden origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none"
+                                style="z-index: 999999;" role="menu" aria-orientation="vertical"
+                                aria-labelledby="menu-button-video-<?php echo $post_id; ?>"
+                                id="dropdown-menu-video-<?php echo $post_id; ?>">
+                                <div class="py-1" role="none">
+                                    <?php foreach ($plans_to_show as $plan): ?>
+                                        <form method="post" action="" class="block w-full text-left">
+                                            <?php wp_nonce_field('flow_subscribe_action', 'flow_subscribe_nonce'); ?>
+                                            <input type="hidden" name="flow_plan_id" value="<?php echo esc_attr($plan['planId']); ?>" />
+                                            <input type="hidden" name="action" value="flow_subscribe" />
+                                            <button type="submit"
+                                                class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hover:text-gray-900"
+                                                role="menuitem">
+                                                <span class="font-bold"><?php echo esc_html($plan['name']); ?></span>
+                                                <?php if (isset($plan['amount'])): ?>
+                                                    <span class="text-gray-500 text-xs ml-1">-
+                                                        $<?php echo number_format($plan['amount'], 0, ',', '.'); ?></span>
+                                                <?php endif; ?>
+                                            </button>
+                                        </form>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Close dropdown when clicking outside -->
+                        <script>
+                            document.addEventListener('click', function (event) {
+                                var dropdown = document.getElementById('dropdown-menu-video-<?php echo $post_id; ?>');
+                                var button = document.getElementById('menu-button-video-<?php echo $post_id; ?>');
+                                if (dropdown && !dropdown.classList.contains('hidden') && !button.contains(event.target) && !dropdown.contains(event.target)) {
+                                    dropdown.classList.add('hidden');
+                                }
+                            });
+                        </script>
+
+                    <?php else: ?>
+                        <a href="<?php echo home_url('/membership-signup/'); ?>"
+                            class="bg-primary-blue text-white p-3 px-8 rounded-full font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity">
+                            Suscríbete Ahora
+                        </a>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -53,7 +135,7 @@
         $gallery_ids = array_slice($gallery_ids, 0, 4);
         $grid_class = 'grid-cols-' . (count($gallery_ids) == 1 ? '1' : '2');
         ?>
-        <div class="flow-photo-gallery-container relative rounded-t-xl overflow-hidden" style="height: 350px;"
+        <div class="flow-photo-gallery-container relative rounded-t-xl overflow-visible z-30" style="height: 350px;"
             data-post-id="<?php echo $post_id; ?>">
             <div class="grid <?php echo $grid_class; ?> gap-0.5 h-full">
                 <?php foreach ($gallery_ids as $index => $attachment_id):
@@ -77,13 +159,94 @@
             <?php if (!$is_subscriber): ?>
                 <!-- Paywall Overlay for Non-Subscribers -->
                 <div
-                    class="absolute inset-0 z-10 flex flex-col justify-center items-center bg-black bg-opacity-70 backdrop-blur-sm p-4 text-center rounded-t-xl">
+                    class="absolute inset-0 z-10 overflow-visible flex flex-col justify-center items-center bg-black bg-opacity-70 backdrop-blur-sm p-4 text-center rounded-t-xl">
                     <h3 class="text-xl font-bold text-white mb-4">Contenido Exclusivo para Suscriptores</h3>
                     <p class="text-gray-300 mb-6">Únete a Flow para desbloquear este y todo el contenido.</p>
-                    <a href="<?php echo home_url('/membership-signup/'); ?>"
-                        class="bg-primary-blue text-white p-3 px-8 rounded-full font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity">
-                        Suscríbete Ahora
-                    </a>
+
+                    <?php
+                    // Reuse logic from above (or better, encapsulate in a function/template, but for now duplicate for speed as per instructions)
+                    // We need to re-fetch or reuse variables. Since this is a loop, variables reset? No, it's same scope.
+                    // But let's be safe and re-check.
+                    $selected_plan_ids = get_option('flow_sub_selected_plans', array());
+                    $plans_to_show = array();
+
+                    if (!empty($selected_plan_ids)) {
+                        $cached_plans = get_transient('flow_sub_all_plans');
+                        if (false === $cached_plans) {
+                            // Fallback: Fetch from API if cache is empty
+                            $api_key = get_option('flow_sub_api_key');
+                            $secret_key = get_option('flow_sub_secret_key');
+                            if ($api_key && $secret_key) {
+                                require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
+                                $api = new Flow_Sub_API($api_key, $secret_key);
+                                $cached_plans = $api->get_plans(); // This method now handles caching internally
+                            }
+                        }
+                        if ($cached_plans && isset($cached_plans['data'])) {
+                            foreach ($cached_plans['data'] as $p) {
+                                if (in_array($p['planId'], $selected_plan_ids)) {
+                                    $plans_to_show[] = $p;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!empty($plans_to_show)):
+                        ?>
+                        <div class="relative inline-block text-left flow-sub-dropdown">
+                            <button type="button"
+                                class="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-8 py-3 text-base font-bold text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-[#f50] transition-all"
+                                style="background-color: #f50;" id="menu-button-photo-<?php echo $post_id; ?>" aria-expanded="true"
+                                aria-haspopup="true"
+                                onclick="document.getElementById('dropdown-menu-photo-<?php echo $post_id; ?>').classList.toggle('hidden');">
+                                Escoge tu Plan
+                                <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                                    fill="currentColor" aria-hidden="true">
+                                    <path fill-rule="evenodd"
+                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                            </button>
+
+                            <div class="hidden origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none"
+                                style="z-index: 999999;" role="menu" aria-orientation="vertical"
+                                aria-labelledby="menu-button-photo-<?php echo $post_id; ?>"
+                                id="dropdown-menu-photo-<?php echo $post_id; ?>">
+                                <div class="py-1" role="none">
+                                    <?php foreach ($plans_to_show as $plan): ?>
+                                        <form method="post" action="" class="block w-full text-left">
+                                            <?php wp_nonce_field('flow_subscribe_action', 'flow_subscribe_nonce'); ?>
+                                            <input type="hidden" name="flow_plan_id" value="<?php echo esc_attr($plan['planId']); ?>" />
+                                            <input type="hidden" name="action" value="flow_subscribe" />
+                                            <button type="submit"
+                                                class="text-gray-700 block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 hover:text-gray-900"
+                                                role="menuitem">
+                                                <span class="font-bold"><?php echo esc_html($plan['name']); ?></span>
+                                                <?php if (isset($plan['amount'])): ?>
+                                                    <span class="text-gray-500 text-xs ml-1">-
+                                                        $<?php echo number_format($plan['amount'], 0, ',', '.'); ?></span>
+                                                <?php endif; ?>
+                                            </button>
+                                        </form>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <script>
+                            document.addEventListener('click', function (event) {
+                                var dropdown = document.getElementById('dropdown-menu-photo-<?php echo $post_id; ?>');
+                                var button = document.getElementById('menu-button-photo-<?php echo $post_id; ?>');
+                                if (dropdown && !dropdown.classList.contains('hidden') && !button.contains(event.target) && !dropdown.contains(event.target)) {
+                                    dropdown.classList.add('hidden');
+                                }
+                            });
+                        </script>
+                    <?php else: ?>
+                        <a href="<?php echo home_url('/membership-signup/'); ?>"
+                            class="bg-primary-blue text-white p-3 px-8 rounded-full font-bold uppercase tracking-wider hover:bg-opacity-90 transition-opacity">
+                            Suscríbete Ahora
+                        </a>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -398,28 +561,28 @@
         </style>
 
         <script>
-            (function() {
+            (function () {
                 const commentsContainers = document.querySelectorAll('.flow-comments-container');
-                
-                commentsContainers.forEach(function(container) {
+
+                commentsContainers.forEach(function (container) {
                     // Check if content is scrollable
                     function updateGradient() {
                         const isScrollable = container.scrollHeight > container.clientHeight;
                         const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 5;
-                        
+
                         if (!isScrollable || isAtBottom) {
                             container.classList.add('scrolled-to-bottom');
                         } else {
                             container.classList.remove('scrolled-to-bottom');
                         }
                     }
-                    
+
                     // Initial check
                     updateGradient();
-                    
+
                     // Update on scroll
                     container.addEventListener('scroll', updateGradient);
-                    
+
                     // Update on window resize
                     window.addEventListener('resize', updateGradient);
                 });
