@@ -78,21 +78,7 @@ class Flow_Sub_WooCommerce
         $user_id = get_current_user_id();
         $subs = get_user_meta($user_id, 'flow_user_subscriptions', true);
 
-        if (empty($subs) || !is_array($subs)) {
-            echo '<div class="woocommerce-info">' . esc_html__('No tienes suscripciones activas.', 'flow-sub') . '</div>';
-            return;
-        }
-
-        $api_key = get_option('flow_sub_api_key');
-        $secret_key = get_option('flow_sub_secret_key');
-
-        if (!$api_key || !$secret_key) {
-            echo '<div class="woocommerce-error">' . esc_html__('Error de configuración del plugin.', 'flow-sub') . '</div>';
-            return;
-        }
-
-        require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
-        $api = new Flow_Sub_API($api_key, $secret_key);
+        // Styles are rendered below. API init and checks moved to table rendering block.
 
         // Add Tailwind and Custom Styles
         echo '<script src="https://cdn.tailwindcss.com"></script>';
@@ -220,118 +206,130 @@ class Flow_Sub_WooCommerce
         echo '<div class="flow-sub-wrapper container-content">';
         echo '<h3>' . esc_html__('Mis Suscripciones', 'flow-sub') . '</h3>';
 
-        echo '<table id="flow-subscriptions-table" class="account-orders-table woocommerce-orders-table woocommerce-MyAccount-orders shop_table shop_table_responsive my_account_orders">';
-        echo '<thead>';
-        echo '<tr>';
-        echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-date"><span class="nobr">' . esc_html__('Plan y ID', 'flow-sub') . '</span></th>';
-        echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-status"><span class="nobr">' . esc_html__('Estado', 'flow-sub') . '</span></th>';
-        echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-total"><span class="nobr">' . esc_html__('Inicio', 'flow-sub') . '</span></th>';
-        echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-actions"><span class="nobr">' . esc_html__('Acciones', 'flow-sub') . '</span></th>';
-        echo '</tr>';
-        echo '</thead>';
-        echo '<tbody>';
+        if (!empty($subs) && is_array($subs)) {
+            $api_key = get_option('flow_sub_api_key');
+            $secret_key = get_option('flow_sub_secret_key');
 
-        $cache_key = 'flow_user_subs_' . $user_id;
-        $cached_data = get_transient($cache_key);
+            if (!$api_key || !$secret_key) {
+                echo '<div class="woocommerce-error">' . esc_html__('Error de configuración del plugin.', 'flow-sub') . '</div>';
+            } else {
+                require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
+                $api = new Flow_Sub_API($api_key, $secret_key);
 
-        if (false === $cached_data) {
-            $cached_data = array();
-            foreach ($subs as $sub_id) {
-                $sub_data = $api->get_subscription($sub_id);
-                if (!is_wp_error($sub_data)) {
-                    $cached_data[$sub_id] = $sub_data;
-                }
-            }
-            set_transient($cache_key, $cached_data, HOUR_IN_SECONDS);
-        }
+                echo '<table id="flow-subscriptions-table" class="account-orders-table woocommerce-orders-table woocommerce-MyAccount-orders shop_table shop_table_responsive my_account_orders">';
+                echo '<thead>';
+                echo '<tr>';
+                echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-date"><span class="nobr">' . esc_html__('Plan y ID', 'flow-sub') . '</span></th>';
+                echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-status"><span class="nobr">' . esc_html__('Estado', 'flow-sub') . '</span></th>';
+                echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-total"><span class="nobr">' . esc_html__('Inicio', 'flow-sub') . '</span></th>';
+                echo '<th class="woocommerce-orders-table__header woocommerce-orders-table__header-order-actions"><span class="nobr">' . esc_html__('Acciones', 'flow-sub') . '</span></th>';
+                echo '</tr>';
+                echo '</thead>';
+                echo '<tbody>';
 
-        foreach ($subs as $sub_id) {
-            $sub_data = $cached_data[$sub_id] ?? null;
+                $cache_key = 'flow_user_subs_' . $user_id;
+                $cached_data = get_transient($cache_key);
 
-            if (!$sub_data || is_wp_error($sub_data)) {
-                continue;
-            }
-
-            $plan_name = $sub_data['plan_name'] ?? $sub_data['planId'] ?? '-';
-            $status = $sub_data['status'] ?? 0;
-            $start_date = $sub_data['subscription_start'] ?? '-';
-
-            // Check for unpaid invoices
-            $payment_url = '';
-            $is_unpaid = false;
-            if (!empty($sub_data['invoices']) && is_array($sub_data['invoices'])) {
-                foreach ($sub_data['invoices'] as $invoice) {
-                    if (isset($invoice['status']) && 0 === (int) $invoice['status']) {
-                        $is_unpaid = true;
-                        $invoice_details = $api->get_invoice($invoice['id']);
-                        if (!is_wp_error($invoice_details)) {
-                            $payment_url = $invoice_details['paymentLink'] ?? '';
+                if (false === $cached_data) {
+                    $cached_data = array();
+                    foreach ($subs as $sub_id) {
+                        $sub_data = $api->get_subscription($sub_id);
+                        if (!is_wp_error($sub_data)) {
+                            $cached_data[$sub_id] = $sub_data;
                         }
-                        if (empty($payment_url)) {
-                            $payment_url = $invoice['paymentUrl'] ?? $invoice['url'] ?? '';
-                            if (empty($payment_url) && !empty($invoice['token'])) {
-                                $payment_url = 'https://www.flow.cl/app/web/pay.php?token=' . $invoice['token'];
+                    }
+                    set_transient($cache_key, $cached_data, HOUR_IN_SECONDS);
+                }
+
+                foreach ($subs as $sub_id) {
+                    $sub_data = $cached_data[$sub_id] ?? null;
+
+                    if (!$sub_data || is_wp_error($sub_data)) {
+                        continue;
+                    }
+
+                    $plan_name = $sub_data['plan_name'] ?? $sub_data['planId'] ?? '-';
+                    $status = $sub_data['status'] ?? 0;
+                    $start_date = $sub_data['subscription_start'] ?? '-';
+
+                    // Check for unpaid invoices
+                    $payment_url = '';
+                    $is_unpaid = false;
+                    if (!empty($sub_data['invoices']) && is_array($sub_data['invoices'])) {
+                        foreach ($sub_data['invoices'] as $invoice) {
+                            if (isset($invoice['status']) && 0 === (int) $invoice['status']) {
+                                $is_unpaid = true;
+                                $invoice_details = $api->get_invoice($invoice['id']);
+                                if (!is_wp_error($invoice_details)) {
+                                    $payment_url = $invoice_details['paymentLink'] ?? '';
+                                }
+                                if (empty($payment_url)) {
+                                    $payment_url = $invoice['paymentUrl'] ?? $invoice['url'] ?? '';
+                                    if (empty($payment_url) && !empty($invoice['token'])) {
+                                        $payment_url = 'https://www.flow.cl/app/web/pay.php?token=' . $invoice['token'];
+                                    }
+                                }
+                                break;
                             }
                         }
-                        break;
                     }
+
+                    $status_label = flow_sub_get_subscription_status_label($sub_data);
+
+                    echo '<tr class="woocommerce-orders-table__row woocommerce-orders-table__row--status-completed order">';
+
+                    // Plan y ID Column
+                    echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-date" data-title="Plan">';
+                    echo '<div class="font-semibold text-base mb-1">' . esc_html($plan_name) . '</div>';
+                    echo '<div class="text-xs text-gray-500">ID: ' . esc_html($sub_id) . '</div>';
+                    echo '</td>';
+
+                    // Estado Column
+                    echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-status" data-title="Estado">' . wp_kses_post($status_label) . '</td>';
+
+                    // Inicio Column
+                    echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-total" data-title="Inicio">' . esc_html($start_date) . '</td>';
+
+                    // Acciones Column
+                    echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-actions" data-title="Acciones">';
+                    echo '<div class="flex flex-col md:flex-row md:justify-start items-center space-y-2 md:space-y-0">';
+
+                    // Logic for Pay Button: Show if unpaid invoice exists and not cancelled (or cancelled but pay-to-reactivate logic? No, usually just pay pending)
+                    // We can reuse the $is_unpaid logic from before, but let's refine it.
+                    // If status is 2 (Trial) -> No pay button usually, unless trial ended.
+                    // If morose=2 (Pending first payment) -> Show pay button.
+                    // If morose=1 (Overdue) -> Show pay button.
+
+                    if ($is_unpaid && !empty($payment_url) && 4 !== (int) $status) {
+                        echo '<a href="' . esc_url($payment_url) . '" class="minimal-button btn-primary" target="_blank">' . esc_html__('Pagar', 'flow-sub') . '</a>';
+                    }
+
+                    // Cancel button
+                    // Allow cancel if status is 1 (Active) or 2 (Trial)
+                    // If status is 4, it's already cancelled.
+                    if (1 === (int) $status || 2 === (int) $status) {
+                        $cancel_url = wp_nonce_url(add_query_arg(array(
+                            'action' => 'cancel_sub',
+                            'sub_id' => $sub_id
+                        ), wc_get_endpoint_url('flow-subscriptions')), 'flow_cancel_sub');
+
+                        echo '<a href="' . esc_url($cancel_url) . '" class="minimal-button btn-secondary" onclick="return confirm(\'' . esc_js(__('¿Estás seguro de que deseas cancelar esta suscripción?', 'flow-sub')) . '\');" style="margin-left: 5px;">' . esc_html__('Cancelar', 'flow-sub') . '</a>';
+                    }
+
+                    if (!$is_unpaid && 4 === (int) $status) {
+                        echo '-';
+                    }
+
+                    echo '</div>'; // End flex container
+                    echo '</td>';
+                    echo '</tr>';
                 }
+                echo '</tbody>';
+                echo '</table>';
             }
-
-            $status_label = (1 === (int) $status) ? 'Activa' : 'Inactiva';
-
-            if (4 === (int) $status) {
-                $status_label = 'Cancelada';
-            } elseif ($is_unpaid) {
-                if (!empty($payment_url)) {
-                    $status_label = '<a href="' . esc_url($payment_url) . '" target="_blank" class="status-link">' . esc_html__('Pendiente de pago', 'flow-sub') . '</a>';
-                } else {
-                    $status_label = 'Pendiente de pago';
-                }
-            }
-
-            echo '<tr class="woocommerce-orders-table__row woocommerce-orders-table__row--status-completed order">';
-
-            // Plan y ID Column
-            echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-date" data-title="Plan">';
-            echo '<div class="font-semibold text-base mb-1">' . esc_html($plan_name) . '</div>';
-            echo '<div class="text-xs text-gray-500">ID: ' . esc_html($sub_id) . '</div>';
-            echo '</td>';
-
-            // Estado Column
-            echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-status" data-title="Estado">' . wp_kses_post($status_label) . '</td>';
-
-            // Inicio Column
-            echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-total" data-title="Inicio">' . esc_html($start_date) . '</td>';
-
-            // Acciones Column
-            echo '<td class="woocommerce-orders-table__cell woocommerce-orders-table__cell-order-actions" data-title="Acciones">';
-            echo '<div class="flex flex-col md:flex-row md:justify-start items-center space-y-2 md:space-y-0">';
-
-            if ($is_unpaid && !empty($payment_url) && 4 !== (int) $status) {
-                echo '<a href="' . esc_url($payment_url) . '" class="minimal-button btn-primary" target="_blank">' . esc_html__('Pagar', 'flow-sub') . '</a>';
-            }
-
-            // Cancel button
-            if ($status !== 4) { // 4 is Cancelled
-                $cancel_url = wp_nonce_url(add_query_arg(array(
-                    'action' => 'cancel_sub',
-                    'sub_id' => $sub_id
-                ), wc_get_endpoint_url('flow-subscriptions')), 'flow_cancel_sub');
-
-                echo '<a href="' . esc_url($cancel_url) . '" class="minimal-button btn-secondary" onclick="return confirm(\'' . esc_js(__('¿Estás seguro de que deseas cancelar esta suscripción?', 'flow-sub')) . '\');" style="margin-left: 5px;">' . esc_html__('Cancelar', 'flow-sub') . '</a>';
-            }
-
-            if (!$is_unpaid && $status === 4) {
-                echo '-';
-            }
-
-            echo '</div>'; // End flex container
-            echo '</td>';
-            echo '</tr>';
+        } else {
+            echo '<div class="woocommerce-info">' . esc_html__('No tienes suscripciones activas.', 'flow-sub') . '</div>';
         }
-        echo '</tbody>';
-        echo '</table>';
 
         $subscriptions_content = get_option('flow_sub_subscriptions_content', '');
         echo '<div id="flow-subscriptions-after-table">';

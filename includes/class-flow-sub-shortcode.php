@@ -57,30 +57,105 @@ class Flow_Sub_Shortcode
             $secret_key = get_option('flow_sub_secret_key');
 
             if ($api_key && $secret_key) {
-                $cache_key = 'flow_user_subs_' . $user_id;
-                $cached_data = get_transient($cache_key);
+                // Use the new helper function which implements the full state machine
+                // However, the helper checks if user is active *in general* (any subscription).
+                // Here we need to check if user is active *for this specific plan*.
 
-                if (false === $cached_data) {
+                // We need to replicate the logic but filtering by planId.
+                // Or we can fetch all subs and check.
+
+                $subs = get_user_meta($user_id, 'flow_user_subscriptions', true);
+                if (is_array($subs)) {
                     require_once FLOW_SUB_PATH . 'includes/class-flow-sub-api.php';
                     $api = new Flow_Sub_API($api_key, $secret_key);
-                    $subs = get_user_meta($user_id, 'flow_user_subscriptions', true);
-                    $cached_data = array();
-                    if (is_array($subs)) {
+
+                    // Check cache first? The helper does it per user. 
+                    // Let's do a direct check here but using the robust logic.
+                    // Ideally we should refactor the helper to accept a plan_id optional arg.
+                    // For now, let's just fetch and check manually using the same logic.
+
+                    $cache_key = 'flow_user_subs_' . $user_id;
+                    $cached_data = get_transient($cache_key);
+
+                    if (false === $cached_data) {
+                        $cached_data = array();
                         foreach ($subs as $sub_id) {
                             $sub_data = $api->get_subscription($sub_id);
                             if (!is_wp_error($sub_data)) {
                                 $cached_data[$sub_id] = $sub_data;
                             }
                         }
-                        set_transient($cache_key, $cached_data, HOUR_IN_SECONDS);
+                        set_transient($cache_key, $cached_data, 15 * MINUTE_IN_SECONDS);
                     }
-                }
 
-                if (is_array($cached_data)) {
-                    foreach ($cached_data as $sub) {
-                        if (isset($sub['planId']) && $sub['planId'] == $atts['plan'] && isset($sub['status']) && 1 === (int) $sub['status']) {
-                            $is_subscribed = true;
-                            break;
+                    if (is_array($cached_data)) {
+                        foreach ($cached_data as $sub) {
+                            // Check Plan ID
+                            if (isset($sub['planId']) && $sub['planId'] == $atts['plan']) {
+                                // Now check if ACTIVE using the robust logic
+                                $now = current_time('timestamp');
+                                $status = isset($sub['status']) ? (int) $sub['status'] : 0;
+                                $morose = isset($sub['morose']) ? (int) $sub['morose'] : 0;
+
+                                $sub_is_active = false;
+
+                                // Trial
+                                if (2 === $status && !empty($sub['trial_end'])) {
+                                    if ($now <= strtotime($sub['trial_end']))
+                                        $sub_is_active = true;
+                                }
+
+                                // Pending First Payment (Grace)
+                                if (2 === $morose) {
+                                    if (!empty($sub['invoices'])) {
+                                        foreach ($sub['invoices'] as $invoice) {
+                                            if (isset($invoice['status']) && 0 === (int) $invoice['status']) {
+                                                $due_date = isset($invoice['due_date']) ? strtotime($invoice['due_date']) : 0;
+                                                if ($due_date > 0 && $now <= $due_date) {
+                                                    $sub_is_active = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Grace Period
+                                if (!empty($sub['invoices'])) {
+                                    foreach ($sub['invoices'] as $invoice) {
+                                        if (isset($invoice['status']) && 0 === (int) $invoice['status']) {
+                                            $due_date = isset($invoice['due_date']) ? strtotime($invoice['due_date']) : 0;
+                                            if ($due_date > 0 && $now <= $due_date) {
+                                                $sub_is_active = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Active Paid
+                                if (1 === $status && 0 === $morose) {
+                                    $period_end = isset($sub['period_end']) ? strtotime($sub['period_end']) : 0;
+                                    if ($period_end > 0) {
+                                        if ($now <= $period_end)
+                                            $sub_is_active = true;
+                                    } else {
+                                        $sub_is_active = true;
+                                    }
+                                }
+
+                                // Cancelled Valid
+                                if (4 === $status && isset($sub['cancel_at_period_end']) && 1 === (int) $sub['cancel_at_period_end']) {
+                                    $period_end = isset($sub['period_end']) ? strtotime($sub['period_end']) : 0;
+                                    if ($period_end > 0 && $now <= $period_end)
+                                        $sub_is_active = true;
+                                }
+
+                                if ($sub_is_active) {
+                                    $is_subscribed = true;
+                                    break;
+                                }
+                            }
                         }
                     }
                 }

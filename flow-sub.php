@@ -40,6 +40,10 @@ function flow_sub_init()
 	require_once FLOW_SUB_PATH . 'includes/class-flow-sub-shortcode.php';
 	new Flow_Sub_Shortcode();
 
+	// Include the webhook class.
+	require_once FLOW_SUB_PATH . 'includes/class-flow-sub-webhook.php';
+	new Flow_Sub_Webhook();
+
 	// Include WooCommerce integration if WooCommerce is active.
 	if (class_exists('WooCommerce')) {
 		require_once FLOW_SUB_PATH . 'includes/class-flow-sub-woocommerce.php';
