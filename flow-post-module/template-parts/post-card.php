@@ -317,34 +317,114 @@
         <div class="space-y-4">
             <h3 class="text-lg font-bold text-gray-900">Discusión</h3>
 
-            <?php
-            $comments = get_comments(['post_id' => $post_id, 'number' => 2, 'status' => 'approve']);
-            if ($comments):
-                foreach ($comments as $comment):
-                    // Get custom profile picture for commenter
-                    $c_avatar = get_user_meta($comment->user_id, 'profile_picture', true);
-                    if (empty($c_avatar)) {
-                        $c_avatar = get_avatar_url($comment->comment_author_email, ['size' => 40]);
-                    }
-                    ?>
-                    <div class="flex space-x-3">
-                        <img class="w-8 h-8 rounded-full object-cover shrink-0" src="<?php echo esc_url($c_avatar); ?>"
-                            alt="Commenter Avatar">
-                        <div>
-                            <p class="text-sm font-semibold text-gray-900">
-                                <?php echo esc_html($comment->comment_author); ?> <span
-                                    class="text-xs font-normal text-gray-500 ml-1">·
-                                    hace
-                                    <?php echo human_time_diff(strtotime($comment->comment_date), current_time('timestamp')); ?></span>
-                            </p>
-                            <p class="text-sm text-gray-700"><?php echo get_comment_text($comment); ?></p>
+            <!-- Scrollable Comments Container -->
+            <div class="flow-comments-container">
+                <?php
+                $comments = get_comments(['post_id' => $post_id, 'status' => 'approve']);
+                if ($comments):
+                    foreach ($comments as $comment):
+                        // Get custom profile picture for commenter
+                        $c_avatar = get_user_meta($comment->user_id, 'profile_picture', true);
+                        if (empty($c_avatar)) {
+                            $c_avatar = get_avatar_url($comment->comment_author_email, ['size' => 40]);
+                        }
+                        ?>
+                        <div class="flex space-x-3 mb-4">
+                            <img class="w-8 h-8 rounded-full object-cover shrink-0" src="<?php echo esc_url($c_avatar); ?>"
+                                alt="Commenter Avatar">
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900">
+                                    <?php echo esc_html($comment->comment_author); ?> <span
+                                        class="text-xs font-normal text-gray-500 ml-1">·
+                                        hace
+                                        <?php echo human_time_diff(strtotime($comment->comment_date), current_time('timestamp')); ?></span>
+                                </p>
+                                <p class="text-sm text-gray-700"><?php echo get_comment_text($comment); ?></p>
+                            </div>
                         </div>
-                    </div>
-                <?php endforeach;
-            else: ?>
-                <p class="text-sm text-gray-500 italic">Aún no hay comentarios. ¡Sé el primero!</p>
-            <?php endif; ?>
+                    <?php endforeach;
+                else: ?>
+                    <p class="text-sm text-gray-500 italic">Aún no hay comentarios. ¡Sé el primero!</p>
+                <?php endif; ?>
+            </div>
         </div>
+
+        <style>
+            /* Scrollable Comments Section */
+            .flow-comments-container {
+                max-height: 350px;
+                overflow-y: auto;
+                position: relative;
+                scroll-behavior: smooth;
+                padding-right: 8px;
+            }
+
+            /* Custom Scrollbar Styling */
+            .flow-comments-container::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            .flow-comments-container::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 3px;
+            }
+
+            .flow-comments-container::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 3px;
+            }
+
+            .flow-comments-container::-webkit-scrollbar-thumb:hover {
+                background: #94a3b8;
+            }
+
+            /* Fade Gradient at Bottom */
+            .flow-comments-container::after {
+                content: '';
+                position: sticky;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 60px;
+                background: linear-gradient(to bottom, transparent 0%, rgba(255, 255, 255, 0.8) 50%, white 100%);
+                pointer-events: none;
+                display: block;
+            }
+
+            /* Hide gradient when scrolled to bottom */
+            .flow-comments-container.scrolled-to-bottom::after {
+                display: none;
+            }
+        </style>
+
+        <script>
+            (function() {
+                const commentsContainers = document.querySelectorAll('.flow-comments-container');
+                
+                commentsContainers.forEach(function(container) {
+                    // Check if content is scrollable
+                    function updateGradient() {
+                        const isScrollable = container.scrollHeight > container.clientHeight;
+                        const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 5;
+                        
+                        if (!isScrollable || isAtBottom) {
+                            container.classList.add('scrolled-to-bottom');
+                        } else {
+                            container.classList.remove('scrolled-to-bottom');
+                        }
+                    }
+                    
+                    // Initial check
+                    updateGradient();
+                    
+                    // Update on scroll
+                    container.addEventListener('scroll', updateGradient);
+                    
+                    // Update on window resize
+                    window.addEventListener('resize', updateGradient);
+                });
+            })();
+        </script>
 
         <!-- 6. Comment Input Bar (Only for Subscribers) -->
         <?php if ($is_subscriber): ?>
@@ -368,7 +448,7 @@
                             class="comment-input flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-blue focus:border-primary-blue transition-shadow shadow-inner text-sm outline-none"
                             required>
                         <button type="submit"
-                            class="bg-black text-white p-3 px-6 rounded-md font-semibold hover:bg-gray-800 transition-colors">Publicar</button>
+                            class="bg-black text-white p-2 px-5 rounded-md font-medium text-sm hover:bg-gray-800 transition-colors">Publicar</button>
                     </form>
                 </div>
             </div>
