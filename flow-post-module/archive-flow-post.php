@@ -337,7 +337,14 @@ $flow_status = isset($_GET['flow_status']) ? sanitize_key($_GET['flow_status']) 
     </style>
 </head>
 
-<body <?php body_class('font-sans min-h-screen'); ?>>
+<?php
+// Get background image from settings
+$background_image_id = get_option('flow_sub_background_image');
+$background_image_url = $background_image_id ? wp_get_attachment_image_url($background_image_id, 'full') : '';
+?>
+
+<body <?php body_class('font-sans min-h-screen'); ?> <?php if ($background_image_url): ?>style="background-image: url('<?php echo esc_url($background_image_url); ?>'); background-attachment: fixed; background-size: cover; background-repeat: no-repeat; background-position: center center;"
+    <?php endif; ?>>
 
     <div id="global-header-wrapper">
         <?php

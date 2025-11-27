@@ -22,6 +22,7 @@ class Flow_Sub_Admin
     {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
     }
 
     /**
@@ -51,6 +52,7 @@ class Flow_Sub_Admin
         register_setting('flow_sub_options', 'flow_sub_api_key', array($this, 'encrypt_key'));
         register_setting('flow_sub_options', 'flow_sub_secret_key', array($this, 'encrypt_key'));
         register_setting('flow_sub_subscriptions_options', 'flow_sub_subscriptions_content');
+        register_setting('flow_sub_theme_options', 'flow_sub_background_image');
     }
 
     /**
@@ -76,6 +78,18 @@ class Flow_Sub_Admin
     }
 
     /**
+     * Enqueue admin scripts for media uploader.
+     */
+    public function enqueue_admin_scripts($hook)
+    {
+        if ('toplevel_page_flow-sub' !== $hook) {
+            return;
+        }
+        wp_enqueue_media();
+        wp_enqueue_script('flow-sub-admin', plugin_dir_url(__FILE__) . '../assets/js/admin.js', array('jquery'), '1.0.0', true);
+    }
+
+    /**
      * Render the settings page HTML.
      */
     public function settings_page_html()
@@ -96,6 +110,8 @@ class Flow_Sub_Admin
                     class="nav-tab <?php echo 'api_tester' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('API Tester', 'flow-sub'); ?></a>
                 <a href="?page=flow-sub&tab=subscriptions"
                     class="nav-tab <?php echo 'subscriptions' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Suscripciones', 'flow-sub'); ?></a>
+                <a href="?page=flow-sub&tab=theme"
+                    class="nav-tab <?php echo 'theme' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Theme', 'flow-sub'); ?></a>
             </nav>
 
             <?php if ('flow_tokens' === $active_tab): ?>
@@ -189,6 +205,55 @@ class Flow_Sub_Admin
                     }
                 }
                 ?>
+            <?php elseif ('theme' === $active_tab): ?>
+                <form action="options.php" method="post">
+                    <?php
+                    settings_fields('flow_sub_theme_options');
+                    do_settings_sections('flow_sub_theme_options');
+                    ?>
+                    <h2><?php esc_html_e('Configuración de Tema', 'flow-sub'); ?></h2>
+                    <table class="form-table">
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Imagen de Fondo', 'flow-sub'); ?></th>
+                            <td>
+                                <?php
+                                $background_image_id = get_option('flow_sub_background_image');
+                                $background_image_url = $background_image_id ? wp_get_attachment_image_url($background_image_id, 'medium') : '';
+                                ?>
+                                <div class="flow-sub-image-upload">
+                                    <input type="hidden" id="flow_sub_background_image" name="flow_sub_background_image"
+                                        value="<?php echo esc_attr($background_image_id); ?>" />
+                                    <div class="image-preview-wrapper" style="margin-bottom: 10px;">
+                                        <?php if ($background_image_url): ?>
+                                            <img id="image-preview" src="<?php echo esc_url($background_image_url); ?>"
+                                                style="max-width: 300px; height: auto; display: block; border: 1px solid #ddd; padding: 5px;" />
+                                        <?php else: ?>
+                                            <img id="image-preview" src=""
+                                                style="max-width: 300px; height: auto; display: none; border: 1px solid #ddd; padding: 5px;" />
+                                        <?php endif; ?>
+                                    </div>
+                                    <button type="button" class="button button-secondary" id="upload_image_button">
+                                        <?php esc_html_e('Seleccionar Imagen', 'flow-sub'); ?>
+                                    </button>
+                                    <?php if ($background_image_url): ?>
+                                        <button type="button" class="button button-secondary" id="remove_image_button">
+                                            <?php esc_html_e('Eliminar Imagen', 'flow-sub'); ?>
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="button" class="button button-secondary" id="remove_image_button"
+                                            style="display: none;">
+                                            <?php esc_html_e('Eliminar Imagen', 'flow-sub'); ?>
+                                        </button>
+                                    <?php endif; ?>
+                                    <p class="description">
+                                        <?php esc_html_e('Esta imagen se mostrará como fondo en el feed de Flow Posts.', 'flow-sub'); ?>
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                    <?php submit_button(); ?>
+                </form>
             <?php endif; ?>
         </div>
         <?php
