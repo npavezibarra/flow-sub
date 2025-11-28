@@ -368,36 +368,14 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
     <?php endif; ?>>
     <?php
     if ( ! is_user_logged_in() ) {
-        $modal_id = 'flow-sub-login-register-modal';
-        $modal_title_id = 'flow-sub-login-register-title';
         ?>
-        <!-- Replicated Modal Structure from woo-check -->
-        <div class="woo-check-login-modal" id="<?php echo esc_attr( $modal_id ); ?>" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="<?php echo esc_attr( $modal_title_id ); ?>">
-            <div class="woo-check-login-modal__backdrop"></div>
-            <div class="woo-check-login-modal__content" role="document">
-                <!-- Close button hidden via CSS -->
-                <button type="button" class="woo-check-login-modal__close" aria-label="<?php esc_attr_e( 'Close', 'woocommerce' ); ?>" data-woo-check-modal-dismiss>&times;</button>
-                
-                <div class="flow-sub-login-container">
-                    <!-- Toggle Buttons -->
-                    <div class="flow-sub-auth-toggle">
-                        <button type="button" class="flow-sub-toggle-btn active" data-target="login"><?php esc_html_e( 'Acceso', 'woocommerce' ); ?></button>
-                        <button type="button" class="flow-sub-toggle-btn" data-target="register"><?php esc_html_e( 'Registro', 'woocommerce' ); ?></button>
-                    </div>
-
-                    <div class="flow-sub-auth-forms">
-                        <?php echo do_shortcode( '[woocommerce_my_account]' ); ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Trigger Button -->
-        <button type="button" id="flow-sub-login-trigger" class="woo-check-confidential-login" style="display:none;" data-woo-check-modal-target="<?php echo esc_attr( $modal_id ); ?>"></button>
+        <!-- Trigger for Villegas Courses Plugin (VCP) Auth Modal -->
+        <button type="button" class="vcp-auth-open" id="flow-vcp-trigger" style="display:none;"></button>
 
         <script>
             window.addEventListener('load', function() {
-                const trigger = document.getElementById('flow-sub-login-trigger');
+                // Trigger the VCP modal
+                const trigger = document.getElementById('flow-vcp-trigger');
                 if (trigger) {
                     trigger.click();
                 }
@@ -411,100 +389,43 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 }, true);
 
                 // Prevent backdrop click from closing the modal
-                const backdrop = document.querySelector('.woo-check-login-modal__backdrop');
-                if (backdrop) {
-                    backdrop.removeAttribute('data-woo-check-modal-dismiss');
-                    backdrop.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    });
-                }
-
-                // Toggle Logic
-                const toggleBtns = document.querySelectorAll('.flow-sub-toggle-btn');
-                const loginCol = document.querySelector('.u-column1.col-1');
-                const registerCol = document.querySelector('.u-column2.col-2');
-                const loginHeading = loginCol ? loginCol.querySelector('h2') : null;
-                const registerHeading = registerCol ? registerCol.querySelector('h2') : null;
-
-                // Hide headings as we have tabs
-                if(loginHeading) loginHeading.style.display = 'none';
-                if(registerHeading) registerHeading.style.display = 'none';
-
-                function showForm(target) {
-                    if (target === 'login') {
-                        if(loginCol) loginCol.style.display = 'block';
-                        if(registerCol) registerCol.style.display = 'none';
-                    } else {
-                        if(loginCol) loginCol.style.display = 'none';
-                        if(registerCol) registerCol.style.display = 'block';
+                // We use a MutationObserver to wait for the modal to be added/visible if needed,
+                // but since it's in the footer, we can just target the overlay.
+                // VCP uses .vcp-auth-overlay
+                
+                function enforceModalBlocking() {
+                    const overlay = document.querySelector('.vcp-auth-overlay');
+                    if (overlay) {
+                        // Clone and replace to strip existing event listeners (simple way to remove anonymous listeners)
+                        // OR just stop propagation on capture.
+                        overlay.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.stopImmediatePropagation();
+                        }, true);
                     }
                 }
-
-                // Initial State: Show Login
-                showForm('login');
-
-                toggleBtns.forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        toggleBtns.forEach(b => b.classList.remove('active'));
-                        this.classList.add('active');
-                        showForm(this.dataset.target);
-                    });
+                
+                // Run immediately and also observe for changes in case it's dynamic
+                enforceModalBlocking();
+                
+                // Also re-trigger if it gets closed somehow
+                const observer = new MutationObserver(function(mutations) {
+                    const modal = document.querySelector('.vcp-auth-modal');
+                    if (modal && !modal.classList.contains('is-visible')) {
+                         if (trigger) trigger.click();
+                    }
                 });
-
-                // AJAX Email Check
-                const usernameInput = document.querySelector('#username'); // WooCommerce login username/email input
-                if (usernameInput) {
-                    // Create error message element
-                    const errorMsg = document.createElement('p');
-                    errorMsg.style.color = '#dc2626'; // Red color
-                    errorMsg.style.fontSize = '0.875rem';
-                    errorMsg.style.marginTop = '0.25rem';
-                    errorMsg.style.display = 'none';
-                    errorMsg.textContent = 'Esta cuenta no existe';
-                    usernameInput.parentNode.appendChild(errorMsg);
-
-                    let timeout = null;
-
-                    usernameInput.addEventListener('input', function() {
-                        const email = this.value.trim();
-                        
-                        // Hide error while typing
-                        errorMsg.style.display = 'none';
-
-                        if (timeout) clearTimeout(timeout);
-
-                        // Only check if it looks like an email or has length
-                        if (email.length < 3) return;
-
-                        timeout = setTimeout(function() {
-                            const formData = new FormData();
-                            formData.append('action', 'flow_check_email_exists');
-                            formData.append('email', email);
-
-                            fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
-                                method: 'POST',
-                                body: formData
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.success) {
-                                    if (!data.data.exists) {
-                                        errorMsg.style.display = 'block';
-                                    } else {
-                                        errorMsg.style.display = 'none';
-                                    }
-                                }
-                            })
-                            .catch(err => console.error('Error checking email:', err));
-                        }, 800); // Wait 800ms after typing stops
-                    });
+                
+                const modal = document.querySelector('.vcp-auth-modal');
+                if (modal) {
+                    observer.observe(modal, { attributes: true, attributeFilter: ['class', 'hidden'] });
                 }
             });
         </script>
         <style>
-            /* Hide close button */
-            .woo-check-login-modal__close {
+            /* Hide the VCP close button */
+            .vcp-auth-close {
                 display: none !important;
             }
 
@@ -515,64 +436,10 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 pointer-events: none;
                 user-select: none;
             }
-
-            /* Ensure modal is above everything */
-            .woo-check-login-modal {
-                z-index: 999999 !important;
-            }
             
-            /* Adjust modal content width */
-            .woo-check-login-modal__content {
-                max-width: 500px !important; /* Narrower for single form view */
-                width: 90% !important;
-                max-height: 90vh;
-                overflow-y: auto;
-                padding: 2rem !important;
-            }
-
-            /* Toggle Styles */
-            .flow-sub-auth-toggle {
-                display: flex;
-                justify-content: center;
-                margin-bottom: 2rem;
-                border-bottom: 1px solid #e5e7eb;
-            }
-
-            .flow-sub-toggle-btn {
-                background: none;
-                border: none;
-                padding: 1rem 2rem;
-                font-size: 1.125rem;
-                font-weight: 600;
-                color: #6b7280;
-                cursor: pointer;
-                border-bottom: 2px solid transparent;
-                transition: all 0.2s;
-                font-family: sans-serif !important;
-            }
-
-            .flow-sub-toggle-btn.active {
-                color: #000;
-                border-bottom-color: #000;
-            }
-
-            /* Force sans-serif on all buttons inside the form */
-            .flow-sub-login-container button,
-            .flow-sub-login-container input[type="submit"],
-            .flow-sub-login-container .button {
-                font-family: sans-serif !important;
-            }
-
-            /* Hide WooCommerce columns default layout to handle manually */
-            .u-columns.col2-set {
-                display: block !important;
-                width: 100% !important;
-                margin: 0 !important;
-            }
-            .u-column1, .u-column2 {
-                width: 100% !important;
-                float: none !important;
-                padding: 0 !important;
+            /* Ensure VCP modal is above everything */
+            .vcp-auth-modal, .vcp-auth-overlay {
+                z-index: 999999 !important;
             }
         </style>
         <?php
