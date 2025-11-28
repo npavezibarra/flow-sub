@@ -32,6 +32,10 @@ class Flow_Post_Setup
 
         // Template Loading
         add_filter('template_include', [self::class, 'load_flow_post_template']);
+
+        // AJAX Hook for Email Check
+        add_action('wp_ajax_nopriv_flow_check_email_exists', [self::class, 'ajax_check_email_exists']);
+        add_action('wp_ajax_flow_check_email_exists', [self::class, 'ajax_check_email_exists']);
     }
 
     /**
@@ -551,6 +555,24 @@ class Flow_Post_Setup
 
         wp_send_json_success(['html' => $content]);
         wp_die();
+    }
+    /**
+     * AJAX handler to check if an email exists.
+     */
+    public static function ajax_check_email_exists()
+    {
+        // Verify nonce if you want to be strict, but for a public login check it might be optional
+        // depending on security requirements. Let's assume we want to be open for the login form.
+
+        if (isset($_POST['email'])) {
+            $email = sanitize_email($_POST['email']);
+            if (email_exists($email)) {
+                wp_send_json_success(['exists' => true]);
+            } else {
+                wp_send_json_success(['exists' => false]);
+            }
+        }
+        wp_send_json_error(['message' => 'No email provided']);
     }
 }
 Flow_Post_Setup::init();

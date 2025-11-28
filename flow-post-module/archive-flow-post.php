@@ -366,6 +366,219 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
 
 <body <?php body_class('font-sans min-h-screen'); ?> <?php if ($background_image_url): ?>style="background-image: url('<?php echo esc_url($background_image_url); ?>'); background-attachment: fixed; background-size: cover; background-repeat: no-repeat; background-position: center center;"
     <?php endif; ?>>
+    <?php
+    if ( ! is_user_logged_in() ) {
+        $modal_id = 'flow-sub-login-register-modal';
+        $modal_title_id = 'flow-sub-login-register-title';
+        ?>
+        <!-- Replicated Modal Structure from woo-check -->
+        <div class="woo-check-login-modal" id="<?php echo esc_attr( $modal_id ); ?>" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="<?php echo esc_attr( $modal_title_id ); ?>">
+            <div class="woo-check-login-modal__backdrop"></div>
+            <div class="woo-check-login-modal__content" role="document">
+                <!-- Close button hidden via CSS -->
+                <button type="button" class="woo-check-login-modal__close" aria-label="<?php esc_attr_e( 'Close', 'woocommerce' ); ?>" data-woo-check-modal-dismiss>&times;</button>
+                
+                <div class="flow-sub-login-container">
+                    <!-- Toggle Buttons -->
+                    <div class="flow-sub-auth-toggle">
+                        <button type="button" class="flow-sub-toggle-btn active" data-target="login"><?php esc_html_e( 'Acceso', 'woocommerce' ); ?></button>
+                        <button type="button" class="flow-sub-toggle-btn" data-target="register"><?php esc_html_e( 'Registro', 'woocommerce' ); ?></button>
+                    </div>
+
+                    <div class="flow-sub-auth-forms">
+                        <?php echo do_shortcode( '[woocommerce_my_account]' ); ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trigger Button -->
+        <button type="button" id="flow-sub-login-trigger" class="woo-check-confidential-login" style="display:none;" data-woo-check-modal-target="<?php echo esc_attr( $modal_id ); ?>"></button>
+
+        <script>
+            window.addEventListener('load', function() {
+                const trigger = document.getElementById('flow-sub-login-trigger');
+                if (trigger) {
+                    trigger.click();
+                }
+
+                // Prevent Escape key from closing the modal
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        e.stopImmediatePropagation();
+                        e.preventDefault();
+                    }
+                }, true);
+
+                // Prevent backdrop click from closing the modal
+                const backdrop = document.querySelector('.woo-check-login-modal__backdrop');
+                if (backdrop) {
+                    backdrop.removeAttribute('data-woo-check-modal-dismiss');
+                    backdrop.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    });
+                }
+
+                // Toggle Logic
+                const toggleBtns = document.querySelectorAll('.flow-sub-toggle-btn');
+                const loginCol = document.querySelector('.u-column1.col-1');
+                const registerCol = document.querySelector('.u-column2.col-2');
+                const loginHeading = loginCol ? loginCol.querySelector('h2') : null;
+                const registerHeading = registerCol ? registerCol.querySelector('h2') : null;
+
+                // Hide headings as we have tabs
+                if(loginHeading) loginHeading.style.display = 'none';
+                if(registerHeading) registerHeading.style.display = 'none';
+
+                function showForm(target) {
+                    if (target === 'login') {
+                        if(loginCol) loginCol.style.display = 'block';
+                        if(registerCol) registerCol.style.display = 'none';
+                    } else {
+                        if(loginCol) loginCol.style.display = 'none';
+                        if(registerCol) registerCol.style.display = 'block';
+                    }
+                }
+
+                // Initial State: Show Login
+                showForm('login');
+
+                toggleBtns.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        toggleBtns.forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        showForm(this.dataset.target);
+                    });
+                });
+
+                // AJAX Email Check
+                const usernameInput = document.querySelector('#username'); // WooCommerce login username/email input
+                if (usernameInput) {
+                    // Create error message element
+                    const errorMsg = document.createElement('p');
+                    errorMsg.style.color = '#dc2626'; // Red color
+                    errorMsg.style.fontSize = '0.875rem';
+                    errorMsg.style.marginTop = '0.25rem';
+                    errorMsg.style.display = 'none';
+                    errorMsg.textContent = 'Esta cuenta no existe';
+                    usernameInput.parentNode.appendChild(errorMsg);
+
+                    let timeout = null;
+
+                    usernameInput.addEventListener('input', function() {
+                        const email = this.value.trim();
+                        
+                        // Hide error while typing
+                        errorMsg.style.display = 'none';
+
+                        if (timeout) clearTimeout(timeout);
+
+                        // Only check if it looks like an email or has length
+                        if (email.length < 3) return;
+
+                        timeout = setTimeout(function() {
+                            const formData = new FormData();
+                            formData.append('action', 'flow_check_email_exists');
+                            formData.append('email', email);
+
+                            fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    if (!data.data.exists) {
+                                        errorMsg.style.display = 'block';
+                                    } else {
+                                        errorMsg.style.display = 'none';
+                                    }
+                                }
+                            })
+                            .catch(err => console.error('Error checking email:', err));
+                        }, 800); // Wait 800ms after typing stops
+                    });
+                }
+            });
+        </script>
+        <style>
+            /* Hide close button */
+            .woo-check-login-modal__close {
+                display: none !important;
+            }
+
+            /* Blur content */
+            #filter-panel,
+            #main-content-container {
+                filter: blur(5px);
+                pointer-events: none;
+                user-select: none;
+            }
+
+            /* Ensure modal is above everything */
+            .woo-check-login-modal {
+                z-index: 999999 !important;
+            }
+            
+            /* Adjust modal content width */
+            .woo-check-login-modal__content {
+                max-width: 500px !important; /* Narrower for single form view */
+                width: 90% !important;
+                max-height: 90vh;
+                overflow-y: auto;
+                padding: 2rem !important;
+            }
+
+            /* Toggle Styles */
+            .flow-sub-auth-toggle {
+                display: flex;
+                justify-content: center;
+                margin-bottom: 2rem;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            .flow-sub-toggle-btn {
+                background: none;
+                border: none;
+                padding: 1rem 2rem;
+                font-size: 1.125rem;
+                font-weight: 600;
+                color: #6b7280;
+                cursor: pointer;
+                border-bottom: 2px solid transparent;
+                transition: all 0.2s;
+                font-family: sans-serif !important;
+            }
+
+            .flow-sub-toggle-btn.active {
+                color: #000;
+                border-bottom-color: #000;
+            }
+
+            /* Force sans-serif on all buttons inside the form */
+            .flow-sub-login-container button,
+            .flow-sub-login-container input[type="submit"],
+            .flow-sub-login-container .button {
+                font-family: sans-serif !important;
+            }
+
+            /* Hide WooCommerce columns default layout to handle manually */
+            .u-columns.col2-set {
+                display: block !important;
+                width: 100% !important;
+                margin: 0 !important;
+            }
+            .u-column1, .u-column2 {
+                width: 100% !important;
+                float: none !important;
+                padding: 0 !important;
+            }
+        </style>
+        <?php
+    }
+    ?>
+
 
     <div id="global-header-wrapper">
         <?php
@@ -490,9 +703,11 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                     <div class="post-card bg-card-bg rounded-xl border border-black overflow-hidden p-6 md:p-8 relative">
                         <div class="flex justify-between items-center mb-6 border-b border-border-light pb-4">
                             <h2 class="text-xl font-bold text-black">Nueva Publicación Flow</h2>
-                            <button type="button" id="close-modal-btn" class="text-gray-500 hover:text-black transition-colors">
+                            <button type="button" id="close-modal-btn"
+                                class="text-gray-500 hover:text-black transition-colors">
                                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         </div>
@@ -653,13 +868,13 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 // Open Modal
                 toggleButton.addEventListener('click', () => {
                     formContainer.classList.remove('form-hidden');
-                    
+
                     // Reset form for new post
                     const form = document.getElementById('flow-post-form');
                     const formTitle = formContainer.querySelector('h2');
                     const submitBtn = form.querySelector('button[type="submit"]');
                     const postIdInput = document.getElementById('post_id');
-                    
+
                     if (form) form.reset();
                     if (formTitle) formTitle.textContent = 'Nueva Publicación Flow';
                     if (submitBtn) submitBtn.textContent = 'Publicar';
@@ -683,7 +898,7 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                         closeFlowModal();
                     }
                 });
-                
+
                 // Close on Escape key
                 document.addEventListener('keydown', (e) => {
                     if (e.key === 'Escape' && !formContainer.classList.contains('form-hidden')) {
@@ -692,47 +907,47 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 });
             }
 
-                // Edit Post Logic
-                document.addEventListener('click', function (e) {
-                    const editBtn = e.target.closest('.edit-flow-post-btn');
-                    if (editBtn) {
-                        e.preventDefault();
+            // Edit Post Logic
+            document.addEventListener('click', function (e) {
+                const editBtn = e.target.closest('.edit-flow-post-btn');
+                if (editBtn) {
+                    e.preventDefault();
 
-                        const postId = editBtn.dataset.postId;
-                        const title = editBtn.dataset.title;
-                        const content = editBtn.dataset.content;
-                        const videoUrl = editBtn.dataset.videoUrl;
+                    const postId = editBtn.dataset.postId;
+                    const title = editBtn.dataset.title;
+                    const content = editBtn.dataset.content;
+                    const videoUrl = editBtn.dataset.videoUrl;
 
-                        // Populate form
-                        const form = document.getElementById('flow-post-form');
-                        const titleInput = document.getElementById('post-title');
-                        const textInput = document.getElementById('post-text');
-                        const videoInput = document.getElementById('video-link');
-                        const postIdInput = document.getElementById('post_id');
-                        const formTitle = formContainer.querySelector('h2');
-                        const submitBtn = form.querySelector('button[type="submit"]');
+                    // Populate form
+                    const form = document.getElementById('flow-post-form');
+                    const titleInput = document.getElementById('post-title');
+                    const textInput = document.getElementById('post-text');
+                    const videoInput = document.getElementById('video-link');
+                    const postIdInput = document.getElementById('post_id');
+                    const formTitle = formContainer.querySelector('h2');
+                    const submitBtn = form.querySelector('button[type="submit"]');
 
-                        if (formContainer && form) {
-                            // Open form if hidden
-                            if (formContainer.classList.contains('form-hidden')) {
-                                formContainer.classList.remove('form-hidden');
-                            }
-                            
-                            // Set values
-                            if(postIdInput) postIdInput.value = postId;
-                            if(titleInput) titleInput.value = title;
-                            if(textInput) textInput.value = content;
-                            if(videoInput) videoInput.value = videoUrl;
-                            
-                            // Update UI
-                            if(formTitle) formTitle.textContent = 'Editar Publicación Flow';
-                            if(submitBtn) submitBtn.textContent = 'Actualizar';
-                            
-                            // No need to scroll, it's a modal now
+                    if (formContainer && form) {
+                        // Open form if hidden
+                        if (formContainer.classList.contains('form-hidden')) {
+                            formContainer.classList.remove('form-hidden');
                         }
+
+                        // Set values
+                        if (postIdInput) postIdInput.value = postId;
+                        if (titleInput) titleInput.value = title;
+                        if (textInput) textInput.value = content;
+                        if (videoInput) videoInput.value = videoUrl;
+
+                        // Update UI
+                        if (formTitle) formTitle.textContent = 'Editar Publicación Flow';
+                        if (submitBtn) submitBtn.textContent = 'Actualizar';
+
+                        // No need to scroll, it's a modal now
                     }
-                });
-            
+                }
+            });
+
 
             // Filter Panel Toggle Logic
             const filterButton = document.getElementById('filter-button');
