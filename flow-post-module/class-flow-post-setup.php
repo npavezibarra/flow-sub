@@ -116,6 +116,9 @@ class Flow_Post_Setup
      */
     public static function register_flow_post_type()
     {
+        // Get custom slug from settings, fallback to 'flow-feed'
+        $custom_slug = get_option('flow_sub_feed_slug', 'flow-feed');
+
         $labels = [
             'name' => _x('Flow Posts', 'Post Type General Name', 'flow-sub'),
             'singular_name' => _x('Flow Post', 'Post Type Singular Name', 'flow-sub'),
@@ -174,7 +177,7 @@ class Flow_Post_Setup
                 'create_posts' => 'edit_flow_posts', // Users who can edit can create
             ],
             'map_meta_cap' => true,
-            'rewrite' => ['slug' => 'flow-feed'],
+            'rewrite' => ['slug' => $custom_slug],
         ];
         register_post_type('flow-post', $args);
     }

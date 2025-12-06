@@ -54,6 +54,9 @@ class Flow_Sub_Admin
         register_setting('flow_sub_subscriptions_options', 'flow_sub_subscriptions_content');
         register_setting('flow_sub_subscriptions_options', 'flow_sub_selected_plans');
         register_setting('flow_sub_theme_options', 'flow_sub_background_image');
+        register_setting('flow_sub_feed_options', 'flow_sub_feed_slug', array($this, 'sanitize_slug'));
+        register_setting('flow_sub_feed_options', 'flow_sub_feed_page_title');
+        register_setting('flow_sub_feed_options', 'flow_sub_feed_logo');
     }
 
     /**
@@ -76,6 +79,29 @@ class Flow_Sub_Admin
         $encrypted = openssl_encrypt($value, 'aes-256-cbc', $key, 0, $iv);
 
         return base64_encode($encrypted . '::' . $iv);
+    }
+
+    /**
+     * Sanitize slug before saving.
+     *
+     * @param string $value The slug value to sanitize.
+     * @return string Sanitized slug.
+     */
+    public function sanitize_slug($value)
+    {
+        if (empty($value)) {
+            return 'flow-feed'; // Default value
+        }
+
+        // Use WordPress sanitize_title to ensure URL-safe slug
+        $sanitized = sanitize_title($value);
+
+        // If sanitization results in empty string, return default
+        if (empty($sanitized)) {
+            return 'flow-feed';
+        }
+
+        return $sanitized;
     }
 
     /**
@@ -111,6 +137,8 @@ class Flow_Sub_Admin
                     class="nav-tab <?php echo 'api_tester' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('API Tester', 'flow-sub'); ?></a>
                 <a href="?page=flow-sub&tab=subscriptions"
                     class="nav-tab <?php echo 'subscriptions' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Suscripciones', 'flow-sub'); ?></a>
+                <a href="?page=flow-sub&tab=feed_settings"
+                    class="nav-tab <?php echo 'feed_settings' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Feed Settings', 'flow-sub'); ?></a>
                 <a href="?page=flow-sub&tab=theme"
                     class="nav-tab <?php echo 'theme' === $active_tab ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('Theme', 'flow-sub'); ?></a>
             </nav>
@@ -293,6 +321,123 @@ class Flow_Sub_Admin
                                         <?php esc_html_e('Esta imagen se mostrará como fondo en el feed de Flow Posts.', 'flow-sub'); ?>
                                     </p>
                                 </div>
+                            </td>
+                        </tr>
+                    </table>
+                    <?php submit_button(); ?>
+                </form>
+            <?php elseif ('feed_settings' === $active_tab): ?>
+                <form action="options.php" method="post">
+                    <?php
+                    settings_fields('flow_sub_feed_options');
+                    do_settings_sections('flow_sub_feed_options');
+                    ?>
+                    <h2><?php esc_html_e('Configuración del Feed', 'flow-sub'); ?></h2>
+                    <table class="form-table">
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Título de la Página', 'flow-sub'); ?></th>
+                            <td>
+                                <?php
+                                $current_title = get_option('flow_sub_feed_page_title', 'Feed Miembros');
+                                ?>
+                                <input type="text" name="flow_sub_feed_page_title" value="<?php echo esc_attr($current_title); ?>"
+                                    class="regular-text" placeholder="Feed Miembros" />
+                                <p class="description">
+                                    <?php esc_html_e('El título que se mostrará en la página del feed.', 'flow-sub'); ?>
+                                </p>
+                            </td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('URL Slug del Feed', 'flow-sub'); ?></th>
+                            <td>
+                                <?php
+                                $current_slug = get_option('flow_sub_feed_slug', 'flow-feed');
+                                ?>
+                                <input type="text" name="flow_sub_feed_slug" value="<?php echo esc_attr($current_slug); ?>"
+                                    class="regular-text" placeholder="flow-feed" pattern="[a-z0-9-]+" />
+                                <p class="description">
+                                    <?php esc_html_e('Personaliza la URL del feed de Flow Posts. Por ejemplo, si ingresas "member-feed", la URL será yoursite.com/member-feed/', 'flow-sub'); ?>
+                                    <br>
+                                    <strong><?php esc_html_e('Importante:', 'flow-sub'); ?></strong>
+                                    <?php esc_html_e('Después de guardar, debes ir a Ajustes → Enlaces permanentes y hacer clic en "Guardar cambios" para aplicar el nuevo slug.', 'flow-sub'); ?>
+                                </p>
+                                <?php if (isset($_GET['settings-updated'])): ?>
+                                    <div class="notice notice-warning inline">
+                                        <p>
+                                            <strong><?php esc_html_e('¡Recuerda!', 'flow-sub'); ?></strong>
+                                            <?php esc_html_e('Visita', 'flow-sub'); ?>
+                                            <a
+                                                href="<?php echo esc_url(admin_url('options-permalink.php')); ?>"><?php esc_html_e('Ajustes → Enlaces permanentes', 'flow-sub'); ?></a>
+                                            <?php esc_html_e('y haz clic en "Guardar cambios" para aplicar el nuevo slug.', 'flow-sub'); ?>
+                                        </p>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Logo del Feed', 'flow-sub'); ?></th>
+                            <td>
+                                <?php
+                                $feed_logo_id = get_option('flow_sub_feed_logo');
+                                $feed_logo_url = $feed_logo_id ? wp_get_attachment_image_url($feed_logo_id, 'full') : '';
+                                ?>
+                                <div class="flow-sub-logo-upload">
+                                    <input type="hidden" name="flow_sub_feed_logo" id="flow_sub_feed_logo"
+                                        value="<?php echo esc_attr($feed_logo_id); ?>" />
+                                    <div id="flow-sub-logo-preview" style="margin-bottom: 10px;">
+                                        <?php if ($feed_logo_url): ?>
+                                            <img src="<?php echo esc_url($feed_logo_url); ?>"
+                                                style="max-width: 200px; height: auto; display: block;" />
+                                        <?php endif; ?>
+                                    </div>
+                                    <button type="button" class="button" id="flow_sub_feed_logo_button">
+                                        <?php esc_html_e('Seleccionar Logo', 'flow-sub'); ?>
+                                    </button>
+                                    <?php if ($feed_logo_id): ?>
+                                        <button type="button" class="button" id="flow_sub_feed_logo_remove">
+                                            <?php esc_html_e('Remover Logo', 'flow-sub'); ?>
+                                        </button>
+                                    <?php endif; ?>
+                                    <p class="description">
+                                        <?php esc_html_e('Logo personalizado que se mostrará solo en la página del feed.', 'flow-sub'); ?>
+                                    </p>
+                                </div>
+                                <script>
+                                    jQuery(document).ready(function ($) {
+                                        var mediaUploader;
+
+                                        $('#flow_sub_feed_logo_button').click(function (e) {
+                                            e.preventDefault();
+                                            if (mediaUploader) {
+                                                mediaUploader.open();
+                                                return;
+                                            }
+                                            mediaUploader = wp.media({
+                                                title: '<?php esc_html_e('Seleccionar Logo', 'flow-sub'); ?>',
+                                                button: {
+                                                    text: '<?php esc_html_e('Usar este logo', 'flow-sub'); ?>'
+                                                },
+                                                multiple: false
+                                            });
+                                            mediaUploader.on('select', function () {
+                                                var attachment = mediaUploader.state().get('selection').first().toJSON();
+                                                $('#flow_sub_feed_logo').val(attachment.id);
+                                                $('#flow-sub-logo-preview').html('<img src="' + attachment.url + '" style="max-width: 200px; height: auto; display: block;" />');
+                                                if ($('#flow_sub_feed_logo_remove').length === 0) {
+                                                    $('#flow_sub_feed_logo_button').after('<button type="button" class="button" id="flow_sub_feed_logo_remove"><?php esc_html_e('Remover Logo', 'flow-sub'); ?></button>');
+                                                }
+                                            });
+                                            mediaUploader.open();
+                                        });
+
+                                        $(document).on('click', '#flow_sub_feed_logo_remove', function (e) {
+                                            e.preventDefault();
+                                            $('#flow_sub_feed_logo').val('');
+                                            $('#flow-sub-logo-preview').html('');
+                                            $(this).remove();
+                                        });
+                                    });
+                                </script>
                             </td>
                         </tr>
                     </table>

@@ -367,13 +367,13 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
 <body <?php body_class('font-sans min-h-screen'); ?> <?php if ($background_image_url): ?>style="background-image: url('<?php echo esc_url($background_image_url); ?>'); background-attachment: fixed; background-size: cover; background-repeat: no-repeat; background-position: center center;"
     <?php endif; ?>>
     <?php
-    if ( ! is_user_logged_in() ) {
+    if (!is_user_logged_in()) {
         ?>
         <!-- Trigger for Villegas Courses Plugin (VCP) Auth Modal -->
         <button type="button" class="vcp-auth-open" id="flow-vcp-trigger" style="display:none;"></button>
 
         <script>
-            window.addEventListener('load', function() {
+            window.addEventListener('load', function () {
                 // Trigger the VCP modal
                 const trigger = document.getElementById('flow-vcp-trigger');
                 if (trigger) {
@@ -381,7 +381,7 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 }
 
                 // Prevent Escape key from closing the modal
-                document.addEventListener('keydown', function(e) {
+                document.addEventListener('keydown', function (e) {
                     if (e.key === 'Escape') {
                         e.stopImmediatePropagation();
                         e.preventDefault();
@@ -392,31 +392,31 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 // We use a MutationObserver to wait for the modal to be added/visible if needed,
                 // but since it's in the footer, we can just target the overlay.
                 // VCP uses .vcp-auth-overlay
-                
+
                 function enforceModalBlocking() {
                     const overlay = document.querySelector('.vcp-auth-overlay');
                     if (overlay) {
                         // Clone and replace to strip existing event listeners (simple way to remove anonymous listeners)
                         // OR just stop propagation on capture.
-                        overlay.addEventListener('click', function(e) {
+                        overlay.addEventListener('click', function (e) {
                             e.preventDefault();
                             e.stopPropagation();
                             e.stopImmediatePropagation();
                         }, true);
                     }
                 }
-                
+
                 // Run immediately and also observe for changes in case it's dynamic
                 enforceModalBlocking();
-                
+
                 // Also re-trigger if it gets closed somehow
-                const observer = new MutationObserver(function(mutations) {
+                const observer = new MutationObserver(function (mutations) {
                     const modal = document.querySelector('.vcp-auth-modal');
                     if (modal && !modal.classList.contains('is-visible')) {
-                         if (trigger) trigger.click();
+                        if (trigger) trigger.click();
                     }
                 });
-                
+
                 const modal = document.querySelector('.vcp-auth-modal');
                 if (modal) {
                     observer.observe(modal, { attributes: true, attributeFilter: ['class', 'hidden'] });
@@ -436,10 +436,20 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 pointer-events: none;
                 user-select: none;
             }
-            
+
             /* Ensure VCP modal is above everything */
-            .vcp-auth-modal, .vcp-auth-overlay {
+            .vcp-auth-modal,
+            .vcp-auth-overlay {
                 z-index: 999999 !important;
+            }
+        </style>
+        <style>
+            /* Custom header gradient for flow-post archive page */
+            /* Simplified selector as requested */
+            .post-type-archive-flow-post #global-header-wrapper > header > div {
+                background: linear-gradient(140deg, rgba(0, 0, 0, 1) 0%, rgba(51, 51, 51, 1) 100%, rgba(0, 0, 0, 1) 100%) !important;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+                color: white !important;
             }
         </style>
         <?php
@@ -449,12 +459,41 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
 
     <div id="global-header-wrapper">
         <?php
-        // Load the WordPress theme header template part
-        echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
+        // Check if custom feed logo is set
+        $feed_logo_id = get_option('flow_sub_feed_logo');
+
+        if ($feed_logo_id && is_post_type_archive('flow-post')) {
+            $feed_logo_url = wp_get_attachment_image_url($feed_logo_id, 'full');
+
+            if ($feed_logo_url) {
+                // Start output buffering to capture header HTML
+                ob_start();
+                echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
+                $header_html = ob_get_clean();
+
+                // Replace the logo image src with custom feed logo
+                // Target the img tag within the logo figure
+                $header_html = preg_replace(
+                    '/<img([^>]*?)src="[^"]*"([^>]*?)class="wp-image-\d+"([^>]*?)>/',
+                    '<img$1src="' . esc_url($feed_logo_url) . '"$2class="wp-image-' . $feed_logo_id . '"$3>',
+                    $header_html,
+                    1 // Only replace first occurrence (the logo)
+                );
+
+                echo $header_html;
+            } else {
+                // No valid logo URL, use default
+                echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
+            }
+        } else {
+            // Not on feed page or no custom logo set, use default
+            echo do_blocks('<!-- wp:template-part {"slug":"header","area":"header","tagName":"header"} /-->');
+        }
         ?>
 
         <!-- Sub-Header Bar -->
-        <div id="sub-header" class="w-full bg-white border-b border-black z-40 shadow-sm h-16">
+        <div id="sub-header" class="w-full border-b border-white z-40 shadow-sm h-16"
+            style="background: linear-gradient(306deg, rgba(0, 0, 0, 1) 0%, rgba(51, 51, 51, 1) 100%, rgba(0, 0, 0, 1) 100%);">
             <div class="max-w-[1280px] mx-auto h-full flex items-center gap-4">
                 <!-- Filter Button -->
                 <button id="filter-button"
@@ -477,7 +516,9 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                 <?php endif; ?>
 
                 <!-- Page Title -->
-                <h1 class="text-xl font-bold text-gray-900 ml-2">Feed Miembros</h1>
+                <h1 class="text-xl font-bold text-white ml-2">
+                    <?php echo esc_html(get_option('flow_sub_feed_page_title', 'Feed Miembros')); ?>
+                </h1>
             </div>
         </div>
     </div>
@@ -485,46 +526,47 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
     <!-- Filter Panel (Sliding from Left) -->
     <!-- Adjusted top to 164px (80px header + 20px margin + 64px sub-header) -->
     <div id="filter-panel"
-        class="fixed left-0 top-[164px] h-[calc(100vh-10.25rem)] w-80 bg-white shadow-2xl z-30 transform -translate-x-full transition-transform duration-300 ease-in-out border-r border-gray-200">
+        class="fixed left-0 top-[164px] h-[calc(100vh-10.25rem)] w-80 shadow-2xl z-[99] transform -translate-x-full transition-transform duration-300 ease-in-out border-r border-gray-200"
+        style="background: linear-gradient(306deg, rgb(0, 0, 0) 0%, rgb(51, 51, 51) 100%, rgb(0, 0, 0) 100%);">
         <div class="h-full overflow-y-auto" style="padding: 2rem 1.5rem;">
             <!-- Panel Header -->
             <div class="mb-6">
-                <h2 class="text-2xl font-bold text-gray-900 text-left">Filtros</h2>
+                <h2 class="text-2xl font-bold text-white text-left">Filtros</h2>
             </div>
 
             <!-- Post Type Filter -->
             <div class="mb-8">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Tipo de post</h3>
+                <h3 class="text-lg font-semibold text-white mb-4">Tipo de post</h3>
                 <div class="space-y-3">
                     <label class="flex items-center cursor-pointer">
                         <input type="checkbox" id="filter-video"
                             class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
-                        <span class="ml-3 text-gray-700">Video</span>
+                        <span class="ml-3 text-white">Video</span>
                     </label>
                     <label class="flex items-center cursor-pointer">
                         <input type="checkbox" id="filter-photo"
                             class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
-                        <span class="ml-3 text-gray-700">Foto</span>
+                        <span class="ml-3 text-white">Foto</span>
                     </label>
                     <label class="flex items-center cursor-pointer">
                         <input type="checkbox" id="filter-text"
                             class="w-5 h-5 rounded border-gray-300 text-black focus:ring-black">
-                        <span class="ml-3 text-gray-700">Texto</span>
+                        <span class="ml-3 text-white">Texto</span>
                     </label>
                 </div>
             </div>
 
             <!-- Date Range Filter -->
             <div class="mb-8">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Fecha</h3>
+                <h3 class="text-lg font-semibold text-white mb-4">Fecha</h3>
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                        <label class="block text-sm font-medium text-white mb-1">Desde</label>
                         <input type="date" id="filter-date-from"
                             class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                        <label class="block text-sm font-medium text-white mb-1">Hasta</label>
                         <input type="date" id="filter-date-to"
                             class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black">
                     </div>
@@ -534,7 +576,7 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
             <!-- Apply/Clear Buttons -->
             <div class="flex gap-3 mt-6">
                 <button id="apply-filters"
-                    class="flex-1 bg-black text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors">Aplicar</button>
+                    class="flex-1 bg-black text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors border border-white">Aplicar</button>
                 <button id="clear-filters"
                     class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-semibold hover:bg-gray-300 transition-colors">Limpiar</button>
             </div>
@@ -558,11 +600,27 @@ $background_image_url = $background_image_id ? wp_get_attachment_image_url($back
                         class="max-w-xl mx-auto bg-accent-green text-white p-4 rounded-lg shadow-md text-center font-semibold mb-6 transition-all duration-500">
                         ✅ ¡Publicación Flow creada exitosamente!
                     </div>
+                    <script>
+                        // Clean URL by removing flow_status parameter
+                        if (window.history.replaceState) {
+                            const url = new URL(window.location);
+                            url.searchParams.delete('flow_status');
+                            window.history.replaceState({}, document.title, url.pathname + url.search);
+                        }
+                    </script>
                 <?php elseif ($flow_status === 'post_error'): ?>
                     <div
                         class="max-w-xl mx-auto bg-accent-red text-white p-4 rounded-lg shadow-md text-center font-semibold mb-6">
                         ❌ Error: No se pudo guardar la publicación Flow.
                     </div>
+                    <script>
+                        // Clean URL by removing flow_status parameter
+                        if (window.history.replaceState) {
+                            const url = new URL(window.location);
+                            url.searchParams.delete('flow_status');
+                            window.history.replaceState({}, document.title, url.pathname + url.search);
+                        }
+                    </script>
                 <?php endif; ?>
 
                 <!-- Admin Post Creation Form -->
